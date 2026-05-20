@@ -21,9 +21,9 @@ function Dashboard({
   const [history, setHistory] =
     useState([]);
 
-  const [selectedChat,
-    setSelectedChat] =
-    useState(null);
+  const [selectedChatIndex,
+    setSelectedChatIndex] =
+    useState(0);
 
   const API_BASE =
     "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
@@ -51,71 +51,11 @@ function Dashboard({
 
       setHistory(safeData);
 
-      // AUTO SELECT NEWEST CHAT
       if (
         safeData.length > 0
       ) {
 
-        const grouped = [];
-
-        for (
-          let i = 0;
-          i < safeData.length;
-          i++
-        ) {
-
-          const current =
-            safeData[i];
-
-          if (
-            current.role ===
-            "user"
-          ) {
-
-            let answer =
-              "Generating response...";
-
-            for (
-              let j = i + 1;
-              j < safeData.length;
-              j++
-            ) {
-
-              if (
-                safeData[j]
-                  .role ===
-                "assistant"
-              ) {
-
-                answer =
-                  safeData[j]
-                    .content;
-
-                break;
-              }
-            }
-
-            grouped.push({
-
-              question:
-                current.content,
-
-              answer,
-
-              createdAt:
-                current.createdAt
-            });
-          }
-        }
-
-        if (
-          grouped.length > 0
-        ) {
-
-          setSelectedChat(
-            grouped[0]
-          );
-        }
+        setSelectedChatIndex(0);
       }
 
     } catch (error) {
@@ -128,12 +68,13 @@ function Dashboard({
   useEffect(() => {
 
     if (user?.userId) {
+
       loadHistory();
     }
 
   }, [user]);
 
-  // GROUP HISTORY
+  // GROUP CHAT HISTORY
   const groupedHistory = [];
 
   for (
@@ -182,6 +123,12 @@ function Dashboard({
       });
     }
   }
+
+  // CURRENT CHAT
+  const selectedChat =
+    groupedHistory[
+      selectedChatIndex
+    ];
 
   // SEND MESSAGE
   const explain =
@@ -315,7 +262,7 @@ function Dashboard({
 
         <button
           onClick={() =>
-            setSelectedChat(null)
+            setSelectedChatIndex(-1)
           }
 
           style={{
@@ -342,84 +289,83 @@ function Dashboard({
           + New Chat
         </button>
 
-        {groupedHistory
-          .map(
-            (chat, index) => (
+        {groupedHistory.map(
+          (chat, index) => (
+
+            <div
+              key={index}
+
+              onClick={() =>
+                setSelectedChatIndex(
+                  index
+                )
+              }
+
+              style={{
+                padding: 16,
+
+                borderRadius: 14,
+
+                marginBottom: 14,
+
+                cursor: "pointer",
+
+                background:
+                  selectedChatIndex ===
+                  index
+                    ? "#1e293b"
+                    : "#0f172a",
+
+                border:
+                  "1px solid #1e293b",
+
+                transition:
+                  "0.2s"
+              }}
+            >
 
               <div
-                key={index}
-
-                onClick={() =>
-                  setSelectedChat(
-                    chat
-                  )
-                }
-
                 style={{
-                  padding: 16,
+                  fontWeight:
+                    "bold",
 
-                  borderRadius: 14,
+                  marginBottom: 8,
 
-                  marginBottom: 14,
+                  overflow:
+                    "hidden",
 
-                  cursor: "pointer",
+                  textOverflow:
+                    "ellipsis",
 
-                  background:
-                    selectedChat ===
-                    chat
-                      ? "#1e293b"
-                      : "#0f172a",
-
-                  border:
-                    "1px solid #1e293b",
-
-                  transition:
-                    "0.2s"
+                  whiteSpace:
+                    "nowrap"
                 }}
               >
 
-                <div
-                  style={{
-                    fontWeight:
-                      "bold",
-
-                    marginBottom: 8,
-
-                    overflow:
-                      "hidden",
-
-                    textOverflow:
-                      "ellipsis",
-
-                    whiteSpace:
-                      "nowrap"
-                  }}
-                >
-
-                  {
-                    chat.question
-                  }
-
-                </div>
-
-                <div
-                  style={{
-                    fontSize: 12,
-
-                    color:
-                      "#94a3b8"
-                  }}
-                >
-
-                  {new Date(
-                    chat.createdAt
-                  ).toLocaleString()}
-
-                </div>
+                {
+                  chat.question
+                }
 
               </div>
-            )
-          )}
+
+              <div
+                style={{
+                  fontSize: 12,
+
+                  color:
+                    "#94a3b8"
+                }}
+              >
+
+                {new Date(
+                  chat.createdAt
+                ).toLocaleString()}
+
+              </div>
+
+            </div>
+          )
+        )}
 
       </div>
 
@@ -508,7 +454,7 @@ function Dashboard({
 
         </div>
 
-        {/* CHAT CONTENT */}
+        {/* CHAT AREA */}
 
         <div
           style={{
@@ -521,7 +467,8 @@ function Dashboard({
           }}
         >
 
-          {!selectedChat && (
+          {selectedChatIndex ===
+            -1 && (
 
             <div
               style={{
@@ -673,7 +620,7 @@ function Dashboard({
 
         </div>
 
-        {/* INPUT */}
+        {/* INPUT AREA */}
 
         <div
           style={{
