@@ -37,7 +37,11 @@ function Dashboard({
       const data =
         await response.json();
 
-      setHistory(data);
+      setHistory(
+  Array.isArray(data)
+    ? data
+    : []
+);
 
     } catch (error) {
 
