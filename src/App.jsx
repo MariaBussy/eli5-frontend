@@ -1,752 +1,713 @@
-import { useEffect, useMemo, useState } from "react";
-import { Authenticator } from "@aws-amplify/ui-react";
+import {
+useEffect,
+useMemo,
+useState
+} from "react";
+
+import {
+Authenticator
+}
+from "@aws-amplify/ui-react";
 
 const API_BASE =
-  "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+"https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
 function App() {
 
-  const [text, setText] =
-    useState("");
+const [text,setText]=
+useState("");
 
-  const [status, setStatus] =
-    useState("");
+const [status,setStatus]=
+useState("");
 
-  const [history, setHistory] =
-    useState([]);
+const [history,setHistory]=
+useState([]);
 
-  const [
-    selectedConversationId,
-    setSelectedConversationId
-  ] = useState(null);
+const [
+selectedConversationId,
+setSelectedConversationId
+]=useState(null);
 
-  const [userData, setUserData] =
-    useState(null);
+const [
+userData,
+setUserData
+]=useState(null);
 
-  // LOAD HISTORY
-  const loadHistory = async (
-    currentUser
-  ) => {
+const [
+loading,
+setLoading
+]=useState(false);
 
-    if (!currentUser?.userId)
-      return;
+// ---------- HISTORY ----------
 
-    try {
+const loadHistory =
+async(user)=>{
 
-      const response =
-        await fetch(
-          `${API_BASE}/history?userId=${currentUser.userId}`
-        );
+if(!user?.userId)
+return;
 
-      const data =
-        await response.json();
+try{
 
-      const safeData =
-        Array.isArray(data)
-          ? data
-          : [];
+const res=
+await fetch(
+`${API_BASE}/history?userId=${user.userId}`
+);
 
-      safeData.sort(
-        (a, b) =>
-          new Date(a.createdAt) -
-          new Date(b.createdAt)
-      );
+const data=
+await res.json();
 
-      setHistory(safeData);
+const rows=
+Array.isArray(data)
+?data
+:[];
 
-      // SELECT FIRST CONVERSATION IF NONE
-      if (
-        !selectedConversationId &&
-        safeData.length > 0
-      ) {
+rows.sort(
+(a,b)=>
+new Date(a.createdAt)-
+new Date(b.createdAt)
+);
 
-        setSelectedConversationId(
-          safeData[0].conversationId
-        );
-      }
+setHistory(rows);
 
-    } catch (error) {
+if(
+!selectedConversationId &&
+rows.length
+){
 
-      console.error(error);
-    }
-  };
+setSelectedConversationId(
+rows.at(-1)
+.conversationId
+);
 
-  // LOAD ON LOGIN
-  useEffect(() => {
+}
 
-    if (userData?.userId) {
+}
+catch(err){
 
-      loadHistory(userData);
-    }
+console.error(err);
 
-  }, [userData]);
+}
 
-  // GROUP CONVERSATIONS
-  const conversations =
-    useMemo(() => {
+};
 
-      const grouped = {};
+useEffect(()=>{
 
-      history.forEach(item => {
+if(userData){
 
-        if (
-          !grouped[
-            item.conversationId
-          ]
-        ) {
+loadHistory(
+userData
+);
 
-          grouped[
-            item.conversationId
-          ] = [];
-        }
+}
 
-        grouped[
-          item.conversationId
-        ].push(item);
-      });
+},[userData]);
 
-      return Object.entries(grouped)
-        .map(
-          ([conversationId, messages]) => {
+// ---------- CONVERSATIONS ----------
 
-            const firstUser =
-              messages.find(
-                m =>
-                  m.role ===
-                  "user"
-              );
+const conversations=
+useMemo(()=>{
 
-            return {
+const map={};
 
-              conversationId,
+history.forEach(m=>{
 
-              title:
-                firstUser
-                  ?.content ||
-                "New Chat",
+if(
+!map[
+m.conversationId
+]
+){
 
-              createdAt:
-                firstUser
-                  ?.createdAt ||
+map[
+m.conversationId
+]=[];
 
-                new Date().toISOString(),
+}
 
-              messages
-            };
-          }
-        )
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt) -
-            new Date(a.createdAt)
-        );
+map[
+m.conversationId
+].push(m);
 
-    }, [history]);
+});
 
-  // CURRENT CHAT
-  const selectedMessages =
-    history.filter(
-      item =>
-        item.conversationId ===
-        selectedConversationId
-    );
+return Object
+.values(map)
 
-  // NEW CHAT
-  const newChat = () => {
+.map(messages=>{
 
-    const newId =
-      crypto.randomUUID();
+messages.sort(
+(a,b)=>
+new Date(a.createdAt)-
+new Date(b.createdAt)
+);
 
-    setSelectedConversationId(
-      newId
-    );
+const first=
+messages.find(
+m=>
+m.role==="user"
+);
 
-    setStatus("");
+return{
 
-    setText("");
-  };
+conversationId:
+first
+?.conversationId,
 
-  // EXPLAIN
-  const explain = async () => {
+title:
+first
+?.content ||
+"New Chat",
 
-    if (!text.trim())
-      return;
+createdAt:
+first
+?.createdAt,
 
-    if (!userData)
-      return;
+messages
 
-    let conversationId =
-      selectedConversationId;
+};
 
-    // ONLY CREATE IF THERE IS NO CHAT YET
-    if (!conversationId) {
+})
 
-      conversationId =
-        crypto.randomUUID();
+.sort(
+(a,b)=>
+new Date(
+b.createdAt
+)-
+new Date(
+a.createdAt
+)
+);
 
-      setSelectedConversationId(
-        conversationId
-      );
-    }
+},[
+history
+]);
 
-    const currentText =
-      text;
+// ---------- CHAT ----------
 
-    // TEMP USER MESSAGE
-    const tempUser = {
+const selectedMessages=
+useMemo(()=>{
 
-      conversationId,
+return history
 
-      role: "user",
+.filter(
+m=>
 
-      content:
-        currentText,
+m.conversationId===
 
-      createdAt:
-        new Date().toISOString()
-    };
+selectedConversationId
+)
 
-    // TEMP AI MESSAGE
-    const tempAI = {
+.sort(
+(a,b)=>
 
-      conversationId,
+new Date(
+a.createdAt
+)-
 
-      role:
-        "assistant",
+new Date(
+b.createdAt
+)
+);
 
-      content:
-        "Generating response...",
+},[
+history,
+selectedConversationId
+]);
 
-      createdAt:
-        new Date().toISOString()
-    };
+// ---------- NEW CHAT ----------
 
-    setHistory(prev => [
+const newChat=()=>{
 
-      ...prev,
+setSelectedConversationId(
+null
+);
 
-      tempUser,
+setText("");
 
-      tempAI
-    ]);
+setStatus("");
 
-    setText("");
+};
 
-    setStatus(
-      "Generating explanation..."
-    );
+// ---------- EXPLAIN ----------
 
-    try {
+const explain=
+async()=>{
 
-      await fetch(
-        `${API_BASE}/explain`,
-        {
-          method: "POST",
+if(
+!text.trim() ||
+loading
+)
+return;
 
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
+setLoading(
+true
+);
 
-          body: JSON.stringify({
+const message=
+text.trim();
 
-            text:
-              currentText,
+setText("");
 
-            userId:
-              userData.userId,
+let convo=
+selectedConversationId;
 
-            email:
-              userData
-                .signInDetails
-                .loginId,
+if(!convo){
 
-            conversationId
-          })
-        }
-      );
+convo=
+crypto.randomUUID();
 
-      // POLL UNTIL AI RESPONSE EXISTS
-      let tries = 0;
+setSelectedConversationId(
+convo
+);
 
-      const interval =
-        setInterval(
-          async () => {
+}
 
-            tries++;
+const optimistic={
 
-            try {
+conversationId:
+convo,
 
-              const response =
-                await fetch(
-                  `${API_BASE}/history?userId=${userData.userId}`
-                );
+role:
+"user",
 
-              const latest =
-                await response.json();
+content:
+message,
 
-              const safeLatest =
-                Array.isArray(latest)
-                  ? latest
-                  : [];
+createdAt:
+new Date()
+.toISOString()
+};
 
-              setHistory(safeLatest);
+setHistory(
+prev=>
+[
+...prev,
+optimistic
+]
+);
 
-              const realAssistant =
-                safeLatest.find(
-                  item =>
+try{
 
-                    item.conversationId ===
-                      conversationId &&
+await fetch(
+`${API_BASE}/explain`,
+{
 
-                    item.role ===
-                      "assistant" &&
+method:
+"POST",
 
-                    item.content !==
-                      "Generating response..."
-                );
+headers:{
+"Content-Type":
+"application/json"
+},
 
-              if (
-                realAssistant
-              ) {
+body:
+JSON.stringify({
 
-                setStatus("");
+text:
+message,
 
-                clearInterval(
-                  interval
-                );
-              }
+userId:
+userData.userId,
 
-            } catch (error) {
+email:
+userData
+.signInDetails
+.loginId,
 
-              console.error(
-                error
-              );
-            }
+conversationId:
+convo
 
-            if (tries > 20) {
+})
 
-              clearInterval(
-                interval
-              );
+}
+);
 
-              setStatus("");
-            }
+setStatus(
+"Generating..."
+);
 
-          },
+let attempts=0;
 
-          2000
-        );
+const timer=
+setInterval(
+async()=>{
 
-    } catch (error) {
-
-      console.error(error);
-
-      setStatus(
-        "Something went wrong."
-      );
-    }
-  };
-
-  return (
-
-    <Authenticator>
-
-      {({
-        signOut,
-        user
-      }) => {
-
-        if (
-          !userData &&
-          user
-        ) {
-
-          setUserData(user);
-        }
-
-        return (
-
-          <div
-            style={{
-              display: "flex",
-              height: "100vh",
-              background:
-                "#020b2d",
-              color: "white",
-              fontFamily:
-                "Arial"
-            }}
-          >
-
-            {/* SIDEBAR */}
-            <div
-              style={{
-                width: 340,
-                borderRight:
-                  "1px solid rgba(255,255,255,0.08)",
-                padding: 20,
-                overflowY:
-                  "auto"
-              }}
-            >
-
-              <h2
-                style={{
-                  textAlign:
-                    "center"
-                }}
-              >
-                Conversations
-              </h2>
-
-              <button
-                onClick={
-                  newChat
-                }
-                style={{
-                  width:
-                    "100%",
-                  padding: 20,
-                  borderRadius: 18,
-                  border:
-                    "none",
-                  background:
-                    "#3b82f6",
-                  color:
-                    "white",
-                  fontSize: 18,
-                  fontWeight:
-                    "bold",
-                  cursor:
-                    "pointer",
-                  marginBottom: 30
-                }}
-              >
-                + New Chat
-              </button>
-
-              {conversations.map(
-                convo => (
-
-                  <div
-                    key={
-                      convo.conversationId
-                    }
-                    onClick={() =>
-                      setSelectedConversationId(
-                        convo.conversationId
-                      )
-                    }
-                    style={{
-                      padding: 25,
-                      borderRadius: 22,
-                      marginBottom: 20,
-                      cursor:
-                        "pointer",
-                      background:
-                        selectedConversationId ===
-                        convo.conversationId
-                          ? "rgba(255,255,255,0.12)"
-                          : "transparent",
-                      border:
-                        "1px solid rgba(255,255,255,0.08)"
-                    }}
-                  >
-
-                    <h3>
-                      {convo.title.slice(
-                        0,
-                        28
-                      )}
-                    </h3>
-
-                    <p
-                      style={{
-                        opacity: 0.6
-                      }}
-                    >
-                      {new Date(
-                        convo.createdAt
-                      ).toLocaleString()}
-                    </p>
-
-                  </div>
-                )
-              )}
-
-            </div>
-
-            {/* MAIN */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection:
-                  "column"
-              }}
-            >
-
-              {/* HEADER */}
-              <div
-                style={{
-                  padding: 30,
-                  borderBottom:
-                    "1px solid rgba(255,255,255,0.08)",
-                  display: "flex",
-                  justifyContent:
-                    "space-between",
-                  alignItems:
-                    "center"
-                }}
-              >
-
-                <div>
-
-                  <h1
-                    style={{
-                      fontSize: 72,
-                      margin: 0
-                    }}
-                  >
-                    Explain Like I'm 5
-                  </h1>
-
-                  <p
-                    style={{
-                      opacity: 0.7
-                    }}
-                  >
-                    {
-                      user
-                        ?.signInDetails
-                        ?.loginId
-                    }
-                  </p>
-
-                </div>
-
-                <button
-                  onClick={
-                    signOut
-                  }
-                  style={{
-                    background:
-                      "#ff5252",
-                    border:
-                      "none",
-                    borderRadius: 18,
-                    color:
-                      "white",
-                    padding:
-                      "18px 30px",
-                    fontSize: 18,
-                    fontWeight:
-                      "bold",
-                    cursor:
-                      "pointer"
-                  }}
-                >
-                  Sign Out
-                </button>
-
-              </div>
-
-              {/* CHAT */}
-              <div
-                style={{
-                  flex: 1,
-                  overflowY:
-                    "auto",
-                  padding: 40,
-                  display: "flex",
-                  flexDirection:
-                    "column",
-                  gap: 30
-                }}
-              >
-
-                {selectedMessages.length ===
-                0 ? (
-
-                  <div
-                    style={{
-                      textAlign:
-                        "center",
-                      opacity: 0.6,
-                      marginTop: 120
-                    }}
-                  >
-
-                    <h2>
-                      Ask anything
-                    </h2>
-
-                    <p>
-                      Your explanations will appear here.
-                    </p>
-
-                  </div>
-
-                ) : (
-
-                  selectedMessages.map(
-                    (
-                      message,
-                      index
-                    ) => (
-
-                      <div
-                        key={
-                          index
-                        }
-                        style={{
-                          display:
-                            "flex",
-                          justifyContent:
-                            message.role ===
-                            "user"
-                              ? "flex-end"
-                              : "flex-start"
-                        }}
-                      >
-
-                        <div
-                          style={{
-                            maxWidth:
-                              "65%",
-                            background:
-                              message.role ===
-                              "user"
-                                ? "#3b82f6"
-                                : "#1f2d52",
-                            padding: 35,
-                            borderRadius: 28,
-                            lineHeight: 1.8,
-                            fontSize: 20
-                          }}
-                        >
-
-                          <div
-                            style={{
-                              fontSize: 14,
-                              opacity: 0.7,
-                              marginBottom: 15,
-                              fontWeight:
-                                "bold"
-                            }}
-                          >
-                            {message.role ===
-                            "user"
-                              ? "You"
-                              : "ELI5 AI"}
-                          </div>
-
-                          <div
-                            style={{
-                              whiteSpace:
-                                "pre-wrap"
-                            }}
-                          >
-                            {
-                              message.content
-                            }
-                          </div>
-
-                        </div>
-
-                      </div>
-                    )
-                  )
-                )}
-
-              </div>
-
-              {/* INPUT */}
-              <div
-                style={{
-                  padding: 30,
-                  borderTop:
-                    "1px solid rgba(255,255,255,0.08)",
-                  display: "flex",
-                  gap: 20
-                }}
-              >
-
-                <textarea
-                  value={text}
-                  onChange={e =>
-                    setText(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Ask something complicated..."
-                  rows={2}
-                  style={{
-                    flex: 1,
-                    background:
-                      "transparent",
-                    border:
-                      "1px solid rgba(255,255,255,0.2)",
-                    color:
-                      "white",
-                    borderRadius: 24,
-                    padding: 30,
-                    fontSize: 18,
-                    resize:
-                      "none",
-                    outline:
-                      "none"
-                  }}
-                />
-
-                <button
-                  onClick={
-                    explain
-                  }
-                  style={{
-                    width: 220,
-                    border:
-                      "none",
-                    borderRadius: 28,
-                    background:
-                      "#4f8dfd",
-                    color:
-                      "white",
-                    fontSize: 24,
-                    fontWeight:
-                      "bold",
-                    cursor:
-                      "pointer"
-                  }}
-                >
-                  Explain
-                </button>
-
-              </div>
-
-              {status && (
-
-                <div
-                  style={{
-                    textAlign:
-                      "center",
-                    paddingBottom: 15,
-                    opacity: 0.7
-                  }}
-                >
-                  {status}
-                </div>
-              )}
-
-            </div>
-
-          </div>
-        );
-      }}
-
-    </Authenticator>
-  );
+attempts++;
+
+await loadHistory(
+userData
+);
+
+const updated=
+history.filter(
+m=>
+
+m.conversationId===
+convo &&
+
+m.role===
+"assistant"
+);
+
+if(
+updated.length
+){
+
+clearInterval(
+timer
+);
+
+setLoading(
+false
+);
+
+setStatus("");
+
+}
+
+if(
+attempts>15
+){
+
+clearInterval(
+timer
+);
+
+setLoading(
+false
+);
+
+setStatus("");
+
+}
+
+},
+2500
+);
+
+}
+catch(err){
+
+console.error(
+err
+);
+
+setLoading(
+false
+);
+
+setStatus(
+"Failed."
+);
+
+}
+
+};
+
+// ---------- UI ----------
+
+return(
+
+<Authenticator>
+
+{({
+user,
+signOut
+})=>{
+
+if(
+!userData &&
+user
+){
+
+setUserData(
+user
+);
+
+}
+
+return(
+
+<div
+style={{
+display:"flex",
+height:"100vh",
+background:"#020b2d",
+color:"white"
+}}
+>
+
+<div
+style={{
+width:340,
+padding:20,
+overflowY:"auto"
+}}
+>
+
+<h2>
+Conversations
+</h2>
+
+<button
+onClick={
+newChat
+}
+style={{
+width:"100%",
+height:72
+}}
+>
++ New Chat
+</button>
+
+{
+conversations.map(
+c=>(
+
+<div
+
+key={
+c.conversationId
+}
+
+onClick={()=>
+
+setSelectedConversationId(
+c.conversationId
+)
+
+}
+
+style={{
+padding:20,
+marginTop:20,
+cursor:"pointer",
+background:
+selectedConversationId===
+c.conversationId
+?
+"#223257"
+:
+"transparent"
+}}
+>
+
+<h3>
+{
+c.title
+.slice(
+0,
+26
+)
+}
+</h3>
+
+<div>
+
+{
+new Date(
+c.createdAt
+)
+.toLocaleString()
+}
+
+</div>
+
+</div>
+
+))
+}
+
+</div>
+
+<div
+style={{
+flex:1,
+display:"flex",
+flexDirection:"column"
+}}
+>
+
+<div
+style={{
+padding:40
+}}
+>
+
+<h1>
+Explain Like I'm 5
+</h1>
+
+<button
+onClick={
+signOut
+}
+>
+Sign Out
+</button>
+
+</div>
+
+<div
+style={{
+flex:1,
+overflow:"auto",
+padding:30
+}}
+>
+
+{
+selectedMessages.map(
+(m,i)=>(
+
+<div
+
+key={
+i
+}
+
+style={{
+
+display:
+"flex",
+
+justifyContent:
+
+m.role===
+"user"
+
+?
+
+"flex-end"
+
+:
+
+"flex-start"
+
+}}
+
+>
+
+<div
+style={{
+maxWidth:700,
+padding:30,
+borderRadius:24,
+marginBottom:20,
+background:
+
+m.role===
+"user"
+
+?
+
+"#3b82f6"
+
+:
+
+"#223257"
+}}
+>
+
+<b>
+
+{
+m.role===
+"user"
+
+?
+
+"You"
+
+:
+
+"ELI5 AI"
+}
+
+</b>
+
+<div>
+
+{
+m.content
+}
+
+</div>
+
+</div>
+
+</div>
+
+))
+}
+
+</div>
+
+<div
+style={{
+display:"flex",
+padding:30
+}}
+>
+
+<textarea
+
+value={
+text
+}
+
+onChange={
+e=>
+
+setText(
+e.target.value
+)
+}
+
+style={{
+flex:1
+}}
+/>
+
+<button
+
+disabled={
+loading
+}
+
+onClick={
+explain
+}
+
+>
+
+{
+loading
+?
+
+"Generating"
+
+:
+
+"Explain"
+}
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+);
+
+}}
+
+</Authenticator>
+
+);
+
 }
 
 export default App;
