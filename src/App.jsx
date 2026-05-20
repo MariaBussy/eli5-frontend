@@ -1,6 +1,7 @@
 import {
   useState,
-  useEffect
+  useEffect,
+  useRef
 } from "react";
 
 import {
@@ -21,10 +22,22 @@ function Dashboard({
   const [history, setHistory] =
     useState([]);
 
+  const messagesEndRef =
+    useRef(null);
+
   const API_BASE =
     "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
-  // Load user history
+  // AUTO SCROLL
+  const scrollToBottom = () => {
+
+    messagesEndRef.current
+      ?.scrollIntoView({
+        behavior: "smooth"
+      });
+  };
+
+  // LOAD HISTORY
   const loadHistory = async () => {
 
     try {
@@ -38,10 +51,10 @@ function Dashboard({
         await response.json();
 
       setHistory(
-  Array.isArray(data)
-    ? data
-    : []
-);
+        Array.isArray(data)
+          ? data
+          : []
+      );
 
     } catch (error) {
 
@@ -49,7 +62,7 @@ function Dashboard({
     }
   };
 
-  // Load history on login
+  // LOAD HISTORY ON LOGIN
   useEffect(() => {
 
     if (user?.userId) {
@@ -58,14 +71,45 @@ function Dashboard({
 
   }, [user]);
 
-  // Generate explanation
+  // AUTO SCROLL WHEN HISTORY CHANGES
+  useEffect(() => {
+
+    scrollToBottom();
+
+  }, [history]);
+
+  // SEND MESSAGE
   const explain = async () => {
+
+    if (!text.trim()) {
+      return;
+    }
 
     setStatus(
       "Generating explanation..."
     );
 
     try {
+
+      // ADD USER MESSAGE IMMEDIATELY
+      const tempUserMessage = {
+
+        role: "user",
+
+        content: text,
+
+        createdAt:
+          new Date().toISOString()
+      };
+
+      setHistory((prev) => [
+        ...prev,
+        tempUserMessage
+      ]);
+
+      const currentText = text;
+
+      setText("");
 
       const response =
         await fetch(
@@ -79,9 +123,11 @@ function Dashboard({
             },
 
             body: JSON.stringify({
-              text,
+              text: currentText,
+
               userId:
                 user.userId,
+
               email:
                 user.signInDetails
                   .loginId
@@ -97,10 +143,26 @@ function Dashboard({
         "Request submitted."
       );
 
-      // Wait for async worker
-      setTimeout(() => {
-        loadHistory();
-      }, 4000);
+      // POLL FOR NEW RESPONSE
+      let attempts = 0;
+
+      const interval =
+        setInterval(async () => {
+
+          attempts++;
+
+          await loadHistory();
+
+          if (attempts >= 10) {
+
+            clearInterval(
+              interval
+            );
+
+            setStatus("");
+          }
+
+        }, 2000);
 
     } catch (error) {
 
@@ -116,135 +178,291 @@ function Dashboard({
 
     <div
       style={{
-        maxWidth: 900,
-        margin: "0 auto",
-        padding: 40,
-        fontFamily: "Arial"
+        minHeight: "100vh",
+        background: "#0f172a",
+        color: "white",
+        fontFamily: "Arial",
+        display: "flex",
+        flexDirection: "column"
       }}
     >
 
-      <h1>
-        Explain Like I'm 5
-      </h1>
-
-      <p>
-        Welcome,
-        {" "}
-        {user?.signInDetails
-          ?.loginId}
-      </p>
-
-      <button
-        onClick={signOut}
-        style={{
-          marginBottom: 20
-        }}
-      >
-        Sign Out
-      </button>
-
-      <textarea
-        rows="3"
-
-        value={text}
-
-        onChange={(e) =>
-          setText(e.target.value)
-        }
-
-        placeholder="Paste difficult text here..."
-
-        style={{
-          width: "100%",
-          padding: 15,
-          fontSize: 16
-        }}
-      />
-
-      <button
-        onClick={explain}
-
-        style={{
-          marginTop: 20,
-          padding: "12px 20px",
-          fontSize: 16,
-          cursor: "pointer"
-        }}
-      >
-        Explain
-      </button>
-
-      {status && (
-        <div
-          style={{
-            marginTop: 30,
-            background: "#f4f4f4",
-            padding: 20,
-            borderRadius: 10
-          }}
-        >
-
-          <h2>Status</h2>
-
-          <p>{status}</p>
-
-        </div>
-      )}
+      {/* HEADER */}
 
       <div
         style={{
-          marginTop: 40
+          padding: 20,
+          borderBottom:
+            "1px solid #1e293b",
+
+          display: "flex",
+
+          justifyContent:
+            "space-between",
+
+          alignItems: "center"
         }}
       >
 
-        <h2>Your History</h2>
+        <div>
+
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 36
+            }}
+          >
+            Explain Like I'm 5
+          </h1>
+
+          <p
+            style={{
+              color: "#94a3b8"
+            }}
+          >
+            {user?.signInDetails
+              ?.loginId}
+          </p>
+
+        </div>
+
+        <button
+          onClick={signOut}
+
+          style={{
+            background:
+              "#ef4444",
+
+            border: "none",
+
+            padding:
+              "10px 16px",
+
+            borderRadius: 10,
+
+            color: "white",
+
+            cursor: "pointer",
+
+            fontWeight: "bold"
+          }}
+        >
+          Sign Out
+        </button>
+
+      </div>
+
+      {/* CHAT AREA */}
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: 30,
+          maxWidth: 900,
+          width: "100%",
+          margin: "0 auto"
+        }}
+      >
 
         {history.length === 0 && (
-          <p>
-            No explanations yet.
-          </p>
+
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: 120,
+              color: "#94a3b8"
+            }}
+          >
+
+            <h2>
+              Start a conversation
+            </h2>
+
+            <p>
+              Ask anything you want
+              explained simply.
+            </p>
+
+          </div>
         )}
 
         {history.map(
-          (item, index) => (
+          (message, index) => (
 
             <div
               key={index}
 
               style={{
-                background:
-                  "#1e1e1e",
+                display: "flex",
 
-                padding: 20,
+                justifyContent:
+                  message.role === "user"
+                    ? "flex-end"
+                    : "flex-start",
 
-                marginBottom: 20,
-
-                borderRadius: 10
+                marginBottom: 20
               }}
             >
 
-              <h3>
-                Question
-              </h3>
+              <div
+                style={{
+                  maxWidth: "75%",
 
-              <p>
-                {item.originalText}
-              </p>
+                  padding: 18,
 
-              <h3>
-                Explanation
-              </h3>
+                  borderRadius: 18,
 
-              <p>
-                {item.explanation}
-              </p>
+                  background:
+                    message.role === "user"
+                      ? "#2563eb"
+                      : "#1e293b",
 
-              <small>
-                {item.createdAt}
-              </small>
+                  lineHeight: 1.8,
+
+                  whiteSpace:
+                    "pre-wrap",
+
+                  boxShadow:
+                    "0 4px 10px rgba(0,0,0,0.25)"
+                }}
+              >
+
+                <div
+                  style={{
+                    fontSize: 13,
+                    marginBottom: 8,
+                    opacity: 0.7,
+                    fontWeight: "bold"
+                  }}
+                >
+
+                  {message.role === "user"
+                    ? "You"
+                    : "ELI5 AI"}
+
+                </div>
+
+                <div>
+                  {message.content}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 12,
+                    fontSize: 11,
+                    opacity: 0.6
+                  }}
+                >
+
+                  {new Date(
+                    message.createdAt
+                  ).toLocaleString()}
+
+                </div>
+
+              </div>
 
             </div>
           )
+        )}
+
+        <div ref={messagesEndRef} />
+
+      </div>
+
+      {/* INPUT */}
+
+      <div
+        style={{
+          padding: 20,
+          borderTop:
+            "1px solid #1e293b",
+          background: "#111827"
+        }}
+      >
+
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            maxWidth: 900,
+            margin: "0 auto"
+          }}
+        >
+
+          <textarea
+            rows="2"
+
+            value={text}
+
+            onChange={(e) =>
+              setText(e.target.value)
+            }
+
+            placeholder="Ask something..."
+
+            style={{
+              flex: 1,
+
+              padding: 16,
+
+              borderRadius: 14,
+
+              border:
+                "1px solid #374151",
+
+              background:
+                "#0f172a",
+
+              color: "white",
+
+              fontSize: 16,
+
+              resize: "none"
+            }}
+          />
+
+          <button
+            onClick={explain}
+
+            style={{
+              background:
+                "#3b82f6",
+
+              border: "none",
+
+              padding:
+                "0 24px",
+
+              borderRadius: 14,
+
+              color: "white",
+
+              fontWeight: "bold",
+
+              cursor: "pointer",
+
+              minWidth: 100
+            }}
+          >
+            Send
+          </button>
+
+        </div>
+
+        {status && (
+
+          <div
+            style={{
+              maxWidth: 900,
+              margin:
+                "10px auto 0",
+              color: "#94a3b8"
+            }}
+          >
+            {status}
+          </div>
         )}
 
       </div>
