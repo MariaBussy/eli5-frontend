@@ -18,8 +18,8 @@ function App() {
   const [history, setHistory] =
     useState([]);
 
-  const [selectedConversationId,
-    setSelectedConversationId] =
+  const [selectedQuestion,
+    setSelectedQuestion] =
       useState(null);
 
   const [userData,
@@ -117,26 +117,26 @@ function App() {
   useEffect(() => {
 
     if (
-      !selectedConversationId &&
+      !selectedQuestion &&
       conversations.length > 0
     ) {
 
-      setSelectedConversationId(
-        conversations[0].createdAt
+      setSelectedQuestion(
+        conversations[0].question
       );
     }
 
   }, [
     conversations,
-    selectedConversationId
+    selectedQuestion
   ]);
 
   // SELECTED CHAT
   const selectedChat =
     conversations.find(
       c =>
-        c.createdAt ===
-        selectedConversationId
+        c.question ===
+        selectedQuestion
     );
 
   // EXPLAIN
@@ -145,17 +145,24 @@ function App() {
 
       if (!text.trim()) return;
 
+      const currentText = text;
+
       setStatus(
         "Request queued successfully."
       );
 
+      setSelectedQuestion(
+        currentText
+      );
+
       try {
 
+        // OPTIMISTIC UI
         const optimisticUserMessage = {
 
           role: "user",
 
-          content: text,
+          content: currentText,
 
           createdAt:
             new Date().toISOString()
@@ -180,12 +187,6 @@ function App() {
 
           ...prev
         ]);
-
-        setSelectedConversationId(
-          optimisticUserMessage.createdAt
-        );
-
-        const currentText = text;
 
         setText("");
 
@@ -287,7 +288,6 @@ function App() {
                 }
               }
 
-              // CHECK IF RESPONSE ARRIVED
               const updatedChat =
                 grouped.find(
                   c =>
@@ -301,8 +301,8 @@ function App() {
                   "Generating response..."
               ) {
 
-                setSelectedConversationId(
-                  updatedChat.createdAt
+                setSelectedQuestion(
+                  currentText
                 );
 
                 clearInterval(
@@ -404,7 +404,7 @@ function App() {
 
                 onClick={() => {
 
-                  setSelectedConversationId(
+                  setSelectedQuestion(
                     null
                   );
                 }}
@@ -444,8 +444,8 @@ function App() {
                     key={index}
 
                     onClick={() =>
-                      setSelectedConversationId(
-                        chat.createdAt
+                      setSelectedQuestion(
+                        chat.question
                       )
                     }
 
@@ -458,18 +458,15 @@ function App() {
                       marginBottom: 18,
 
                       background:
-                        selectedConversationId ===
-                        chat.createdAt
+                        selectedQuestion ===
+                        chat.question
                           ? "#1c2b4a"
                           : "transparent",
 
                       border:
                         "1px solid rgba(255,255,255,0.08)",
 
-                      cursor: "pointer",
-
-                      transition:
-                        "0.2s"
+                      cursor: "pointer"
                     }}
                   >
 
@@ -602,7 +599,7 @@ function App() {
 
               </div>
 
-              {/* CHAT AREA */}
+              {/* CHAT */}
               <div
                 style={{
 
@@ -665,10 +662,7 @@ function App() {
 
                           borderRadius: 28,
 
-                          maxWidth: "45%",
-
-                          boxShadow:
-                            "0 10px 30px rgba(0,0,0,0.3)"
+                          maxWidth: "45%"
                         }}
                       >
 
@@ -703,7 +697,7 @@ function App() {
 
                     </div>
 
-                    {/* ASSISTANT */}
+                    {/* AI */}
                     <div
                       style={{
 
@@ -731,10 +725,7 @@ function App() {
                           fontSize: 21,
 
                           whiteSpace:
-                            "pre-wrap",
-
-                          boxShadow:
-                            "0 10px 30px rgba(0,0,0,0.3)"
+                            "pre-wrap"
                         }}
                       >
 
@@ -850,7 +841,6 @@ function App() {
 
               </div>
 
-              {/* STATUS */}
               {status && (
 
                 <div
