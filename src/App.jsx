@@ -18,9 +18,9 @@ function App() {
   const [history, setHistory] =
     useState([]);
 
-  const [selectedChatIndex,
-    setSelectedChatIndex] =
-      useState(0);
+  const [selectedConversationId,
+    setSelectedConversationId] =
+      useState(null);
 
   const [userData,
     setUserData] =
@@ -113,7 +113,33 @@ function App() {
     }
   }
 
-  // NEW EXPLAIN REQUEST
+  // AUTO SELECT FIRST CHAT
+  useEffect(() => {
+
+    if (
+      !selectedConversationId &&
+      conversations.length > 0
+    ) {
+
+      setSelectedConversationId(
+        conversations[0].createdAt
+      );
+    }
+
+  }, [
+    conversations,
+    selectedConversationId
+  ]);
+
+  // SELECTED CHAT
+  const selectedChat =
+    conversations.find(
+      c =>
+        c.createdAt ===
+        selectedConversationId
+    );
+
+  // EXPLAIN
   const explain =
     async () => {
 
@@ -125,7 +151,6 @@ function App() {
 
       try {
 
-        // optimistic update
         const optimisticUserMessage = {
 
           role: "user",
@@ -156,7 +181,9 @@ function App() {
           ...prev
         ]);
 
-        setSelectedChatIndex(0);
+        setSelectedConversationId(
+          optimisticUserMessage.createdAt
+        );
 
         const currentText = text;
 
@@ -186,7 +213,7 @@ function App() {
           }
         );
 
-        // POLL FOR RESPONSE
+        // POLLING
         let attempts = 0;
 
         const interval =
@@ -211,7 +238,6 @@ function App() {
 
               setHistory(safeData);
 
-              // rebuild grouped chats
               const grouped = [];
 
               for (
@@ -261,14 +287,23 @@ function App() {
                 }
               }
 
-              // latest chat answered
+              // CHECK IF RESPONSE ARRIVED
+              const updatedChat =
+                grouped.find(
+                  c =>
+                    c.question ===
+                    currentText
+                );
+
               if (
-                grouped.length > 0 &&
-                grouped[0].answer !==
+                updatedChat &&
+                updatedChat.answer !==
                   "Generating response..."
               ) {
 
-                setSelectedChatIndex(0);
+                setSelectedConversationId(
+                  updatedChat.createdAt
+                );
 
                 clearInterval(
                   interval
@@ -318,11 +353,6 @@ function App() {
 
           setUserData(user);
         }
-
-        const selectedChat =
-          conversations[
-            selectedChatIndex
-          ];
 
         return (
 
@@ -374,8 +404,8 @@ function App() {
 
                 onClick={() => {
 
-                  setSelectedChatIndex(
-                    0
+                  setSelectedConversationId(
+                    null
                   );
                 }}
 
@@ -414,8 +444,8 @@ function App() {
                     key={index}
 
                     onClick={() =>
-                      setSelectedChatIndex(
-                        index
+                      setSelectedConversationId(
+                        chat.createdAt
                       )
                     }
 
@@ -428,8 +458,8 @@ function App() {
                       marginBottom: 18,
 
                       background:
-                        index ===
-                        selectedChatIndex
+                        selectedConversationId ===
+                        chat.createdAt
                           ? "#1c2b4a"
                           : "transparent",
 
@@ -484,7 +514,7 @@ function App() {
 
             </div>
 
-            {/* MAIN AREA */}
+            {/* MAIN */}
             <div
               style={{
 
