@@ -26,34 +26,41 @@ const [status,setStatus]=
 useState("");
 
 
-// USER
+// LOAD USER
 
 useEffect(()=>{
 
-const stored=
+try{
+
+const raw =
 localStorage.getItem(
 "user"
 );
 
-if(stored){
+if(raw){
 
 setUserData(
-JSON.parse(
-stored
-)
+JSON.parse(raw)
 );
+
+}
+
+}
+catch(err){
+
+console.log(err);
 
 }
 
 },[]);
 
 
-// HISTORY
+// LOAD HISTORY
 
 useEffect(()=>{
 
 if(
-userData
+userData?.userId
 ){
 
 loadHistory();
@@ -68,6 +75,11 @@ userData
 const loadHistory=
 async()=>{
 
+if(
+!userData?.userId
+)
+return;
+
 try{
 
 const res=
@@ -77,6 +89,12 @@ await fetch(
 
 const rows=
 await res.json();
+
+if(
+Array.isArray(
+rows
+)
+){
 
 rows.sort(
 (a,b)=>
@@ -98,49 +116,48 @@ rows
 );
 
 }
-catch(e){
 
-console.log(
-e
-);
+}
+catch(err){
+
+console.log(err);
 
 }
 
 };
 
 
-
-// GROUP
+// CONVERSATIONS
 
 const conversations=
 Object.values(
 
 history.reduce(
 
-(acc,msg)=>{
+(acc,row)=>{
 
 if(
-!msg.conversationId
+!row.conversationId
 )
 return acc;
 
 if(
 !acc[
-msg.conversationId
+row.conversationId
 ]
 ){
 
 acc[
-msg.conversationId
+row.conversationId
 ]={
 id:
-msg.conversationId,
+row.conversationId,
 
 title:
-msg.content,
+row.content,
 
 createdAt:
-msg.createdAt
+row.createdAt
 };
 
 }
@@ -170,7 +187,7 @@ a.createdAt
 );
 
 
-// CURRENT CHAT
+// CURRENT
 
 const current=
 selectedConversationId
@@ -179,9 +196,9 @@ selectedConversationId
 
 history.filter(
 
-m=>
+x=>
 
-m.conversationId===
+x.conversationId===
 
 selectedConversationId
 
@@ -205,6 +222,21 @@ loading
 )
 return;
 
+
+// FIX
+
+if(
+!userData?.userId
+){
+
+setStatus(
+"User not loaded"
+);
+
+return;
+
+}
+
 setLoading(
 true
 );
@@ -220,9 +252,6 @@ setText("");
 
 let conversationId=
 selectedConversationId;
-
-
-// create only once
 
 if(
 !conversationId
@@ -261,7 +290,14 @@ userId:
 userData.userId,
 
 email:
-userData.signInDetails.loginId,
+userData
+?.signInDetails
+?.loginId
+
+||
+
+"",
+
 
 conversationId
 
@@ -272,16 +308,18 @@ conversationId
 );
 
 
-// POLL
+// WAIT
 
-let attempts=0;
+let tries=0;
 
-const interval=
+const poll=
 setInterval(
 
 async()=>{
 
-attempts++;
+tries++;
+
+await loadHistory();
 
 const res=
 await fetch(
@@ -290,25 +328,6 @@ await fetch(
 
 const rows=
 await res.json();
-
-rows.sort(
-(a,b)=>
-
-new Date(
-a.createdAt
-)
-
--
-
-new Date(
-b.createdAt
-)
-
-);
-
-setHistory(
-rows
-);
 
 const convo=
 rows.filter(
@@ -323,20 +342,17 @@ conversationId
 
 const users=
 convo.filter(
-x=>
+m=>
 
-x.role==="user"
+m.role==="user"
 );
 
 const assistants=
 convo.filter(
-x=>
+m=>
 
-x.role==="assistant"
+m.role==="assistant"
 );
-
-
-// response received
 
 if(
 assistants.length
@@ -345,7 +361,7 @@ users.length
 ){
 
 clearInterval(
-interval
+poll
 );
 
 setLoading(
@@ -358,15 +374,13 @@ setStatus(
 
 }
 
-
-// timeout
-
 if(
-attempts>30
+tries>
+30
 ){
 
 clearInterval(
-interval
+poll
 );
 
 setLoading(
@@ -414,13 +428,7 @@ setSelectedConversationId(
 null
 );
 
-setText(
-""
-);
-
-setStatus(
-""
-);
+setText("");
 
 };
 
@@ -432,7 +440,7 @@ const logout=
 
 localStorage.clear();
 
-window.location.reload();
+location.reload();
 
 };
 
@@ -527,10 +535,7 @@ c.createdAt
 </div>
 
 
-
 <div className="chat">
-
-<div className="header">
 
 <h1>
 
@@ -546,6 +551,10 @@ userData
 ?.signInDetails
 ?.loginId
 
+||
+
+""
+
 }
 
 </p>
@@ -560,9 +569,6 @@ Sign Out
 
 </button>
 
-</div>
-
-
 
 <div className="messages">
 
@@ -570,15 +576,15 @@ Sign Out
 
 current.map(
 
-(m,index)=>
+(msg,i)=>
 
 <div
 
-key={index}
+key={i}
 
 className={
 
-m.role==="user"
+msg.role==="user"
 
 ?
 
@@ -592,11 +598,11 @@ m.role==="user"
 
 >
 
-<div>
+<strong>
 
 {
 
-m.role==="user"
+msg.role==="user"
 
 ?
 
@@ -608,15 +614,11 @@ m.role==="user"
 
 }
 
-</div>
+</strong>
 
 <p>
 
-{
-
-m.content
-
-}
+{msg.content}
 
 </p>
 
@@ -638,17 +640,7 @@ className=
 "assistant"
 >
 
-<div>
-
-ELI5 AI
-
-</div>
-
-<p>
-
 Generating response...
-
-</p>
 
 </div>
 
@@ -658,7 +650,7 @@ Generating response...
 
 
 
-<div className="input">
+<div>
 
 <textarea
 
@@ -674,9 +666,6 @@ e.target.value
 )
 
 }
-
-placeholder=
-"Ask something complicated..."
 
 />
 
@@ -712,19 +701,11 @@ loading
 </div>
 
 
-{
-
-status
-
-&&
-
 <p>
 
 {status}
 
 </p>
-
-}
 
 </div>
 
