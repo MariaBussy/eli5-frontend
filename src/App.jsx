@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   Authenticator
@@ -11,6 +11,37 @@ function App() {
 
   const [status, setStatus] =
     useState("");
+
+  const [history, setHistory] =
+  useState([]);
+
+  const loadHistory = async () => {
+
+  try {
+
+    const response =
+      await fetch(
+        `https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod/history?userId=${user.userId}`
+      );
+
+    const data =
+      await response.json();
+
+    setHistory(data);
+
+  } catch (error) {
+
+    console.error(error);
+  }
+};
+
+  useEffect(() => {
+
+  if (user?.userId) {
+    loadHistory();
+  }
+
+}, [user]);
 
   const API_URL =
     "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod/explain";
@@ -32,8 +63,10 @@ function App() {
           },
 
           body: JSON.stringify({
-            text
-          })
+ 		 text,
+ 		 userId: user.userId,
+ 		 email: user.signInDetails.loginId
+	  })
         }
       );
 
@@ -44,6 +77,10 @@ function App() {
         data.message ||
         "Request submitted."
       );
+
+      setTimeout(() => {
+  loadHistory();
+}, 4000);
 
     } catch (error) {
 
@@ -91,7 +128,7 @@ function App() {
           </button>
 
           <textarea
-            rows="10"
+            rows="1"
 
             value={text}
 
@@ -139,6 +176,39 @@ function App() {
               <p>{status}</p>
             </div>
           )}
+
+	<div style={{ marginTop: 40 }}>
+
+  <h2>Your History</h2>
+
+  {history.map((item, index) => (
+
+    <div
+      key={index}
+      style={{
+        background: "#1e1e1e",
+        padding: 20,
+        marginBottom: 20,
+        borderRadius: 10
+      }}
+    >
+
+      <h3>Question</h3>
+
+      <p>{item.originalText}</p>
+
+      <h3>Explanation</h3>
+
+      <p>{item.explanation}</p>
+
+      <small>
+        {item.createdAt}
+      </small>
+
+    </div>
+  ))}
+
+</div>
 
         </div>
       )}
