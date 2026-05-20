@@ -42,11 +42,81 @@ function Dashboard({
       const data =
         await response.json();
 
-      setHistory(
+      console.log(data);
+
+      const safeData =
         Array.isArray(data)
           ? data
-          : []
-      );
+          : [];
+
+      setHistory(safeData);
+
+      // AUTO SELECT NEWEST CHAT
+      if (
+        safeData.length > 0
+      ) {
+
+        const grouped = [];
+
+        for (
+          let i = 0;
+          i < safeData.length;
+          i++
+        ) {
+
+          const current =
+            safeData[i];
+
+          if (
+            current.role ===
+            "user"
+          ) {
+
+            let answer =
+              "Generating response...";
+
+            for (
+              let j = i + 1;
+              j < safeData.length;
+              j++
+            ) {
+
+              if (
+                safeData[j]
+                  .role ===
+                "assistant"
+              ) {
+
+                answer =
+                  safeData[j]
+                    .content;
+
+                break;
+              }
+            }
+
+            grouped.push({
+
+              question:
+                current.content,
+
+              answer,
+
+              createdAt:
+                current.createdAt
+            });
+          }
+        }
+
+        if (
+          grouped.length > 0
+        ) {
+
+          setSelectedChat(
+            grouped[0]
+          );
+        }
+      }
 
     } catch (error) {
 
@@ -63,41 +133,57 @@ function Dashboard({
 
   }, [user]);
 
-  // GROUP USER + AI MESSAGES
+  // GROUP HISTORY
   const groupedHistory = [];
 
   for (
     let i = 0;
     i < history.length;
-    i += 2
+    i++
   ) {
 
-    const userMsg =
+    const current =
       history[i];
 
-    const aiMsg =
-      history[i + 1];
-
     if (
-      userMsg?.role === "user"
+      current.role === "user"
     ) {
+
+      let answer =
+        "Generating response...";
+
+      for (
+        let j = i + 1;
+        j < history.length;
+        j++
+      ) {
+
+        if (
+          history[j].role ===
+          "assistant"
+        ) {
+
+          answer =
+            history[j].content;
+
+          break;
+        }
+      }
 
       groupedHistory.push({
 
         question:
-          userMsg.content,
+          current.content,
 
-        answer:
-          aiMsg?.content ||
-          "No explanation generated.",
+        answer,
 
         createdAt:
-          userMsg.createdAt
+          current.createdAt
       });
     }
   }
 
-  // SEND REQUEST
+  // SEND MESSAGE
   const explain =
     async () => {
 
@@ -150,14 +236,28 @@ function Dashboard({
         "Request submitted."
       );
 
-      // WAIT FOR WORKER
-      setTimeout(async () => {
+      // POLL FOR RESPONSE
+      let attempts = 0;
 
-        await loadHistory();
+      const interval =
+        setInterval(async () => {
 
-        setStatus("");
+          attempts++;
 
-      }, 5000);
+          await loadHistory();
+
+          if (
+            attempts >= 10
+          ) {
+
+            clearInterval(
+              interval
+            );
+
+            setStatus("");
+          }
+
+        }, 2000);
 
     } catch (error) {
 
@@ -243,8 +343,6 @@ function Dashboard({
         </button>
 
         {groupedHistory
-          .slice()
-          .reverse()
           .map(
             (chat, index) => (
 
@@ -267,7 +365,8 @@ function Dashboard({
                   cursor: "pointer",
 
                   background:
-                    selectedChat === chat
+                    selectedChat ===
+                    chat
                       ? "#1e293b"
                       : "#0f172a",
 
@@ -297,7 +396,9 @@ function Dashboard({
                   }}
                 >
 
-                  {chat.question}
+                  {
+                    chat.question
+                  }
 
                 </div>
 
@@ -572,7 +673,7 @@ function Dashboard({
 
         </div>
 
-        {/* INPUT AREA */}
+        {/* INPUT */}
 
         <div
           style={{
