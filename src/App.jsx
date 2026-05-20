@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Authenticator } from "@aws-amplify/ui-react";
 
-function App() {
+const API_BASE =
+  "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
-  const API_BASE =
-    "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+function App() {
 
   const [text, setText] =
     useState("");
@@ -15,127 +15,71 @@ function App() {
   const [history, setHistory] =
     useState([]);
 
-  const [selectedConversationId,
-    setSelectedConversationId] =
-      useState(null);
+  const [
+    selectedConversationId,
+    setSelectedConversationId
+  ] = useState(null);
 
-  const [userData,
-    setUserData] =
-      useState(null);
-
-  // GENERATE UUID
-  const generateConversationId =
-    () => {
-
-      return crypto.randomUUID();
-    };
-
-  // BUILD CONVERSATIONS
-  const buildConversations =
-    (items) => {
-
-      const grouped = {};
-
-      items.forEach(item => {
-
-        if (
-          !grouped[item.conversationId]
-        ) {
-
-          grouped[item.conversationId] = {
-
-            id:
-              item.conversationId,
-
-            createdAt:
-              item.createdAt,
-
-            question: "",
-
-            answer:
-              "Generating response..."
-          };
-        }
-
-        if (
-          item.role === "user"
-        ) {
-
-          grouped[
-            item.conversationId
-          ].question =
-            item.content;
-        }
-
-        if (
-          item.role ===
-          "assistant"
-        ) {
-
-          grouped[
-            item.conversationId
-          ].answer =
-            item.content;
-        }
-      });
-
-      return Object.values(grouped)
-        .sort(
-          (a, b) =>
-            new Date(
-              b.createdAt
-            ) -
-            new Date(
-              a.createdAt
-            )
-        );
-    };
+  const [
+    userData,
+    setUserData
+  ] = useState(null);
 
   // LOAD HISTORY
-  const loadHistory =
-    async (currentUser) => {
+  const loadHistory = async (
+    currentUser
+  ) => {
 
-      try {
+    if (!currentUser?.userId)
+      return;
 
-        const response =
-          await fetch(
-            `${API_BASE}/history?userId=${currentUser.userId}`
-          );
+    try {
 
-        const data =
-          await response.json();
-
-        const safeData =
-          Array.isArray(data)
-            ? data
-            : [];
-
-        const conversations =
-          buildConversations(
-            safeData
-          );
-
-        setHistory(
-          conversations
+      const response =
+        await fetch(
+          `${API_BASE}/history?userId=${currentUser.userId}`
         );
 
-        if (
-          conversations.length > 0 &&
-          !selectedConversationId
-        ) {
+      const data =
+        await response.json();
 
-          setSelectedConversationId(
-            conversations[0].id
-          );
-        }
+      const safeData =
+        Array.isArray(data)
+          ? data
+          : [];
 
-      } catch (error) {
+      // SORT
+      safeData.sort(
+        (a, b) =>
+          new Date(a.createdAt) -
+          new Date(b.createdAt)
+      );
 
-        console.error(error);
+      setHistory(safeData);
+
+      // AUTO-SELECT MOST RECENT CHAT
+      if (
+        safeData.length > 0 &&
+        !selectedConversationId
+      ) {
+
+        const latest =
+          safeData[
+            safeData.length - 1
+          ];
+
+        setSelectedConversationId(
+          latest.conversationId
+        );
       }
-    };
 
-  // INITIAL LOAD
+    } catch (error) {
+
+      console.error(error);
+    }
+  };
+
+  // LOAD ON LOGIN
   useEffect(() => {
 
     if (userData?.userId) {
@@ -145,19 +89,88 @@ function App() {
 
   }, [userData]);
 
+  // GROUP CONVERSATIONS
+  const conversations =
+    useMemo(() => {
+
+      const grouped = {};
+
+      history.forEach(item => {
+
+        if (
+          !grouped[
+            item.conversationId
+          ]
+        ) {
+
+          grouped[
+            item.conversationId
+          ] = [];
+        }
+
+        grouped[
+          item.conversationId
+        ].push(item);
+      });
+
+      return Object.entries(
+        grouped
+      )
+        .map(
+          ([conversationId, messages]) => {
+
+            const firstUserMessage =
+              messages.find(
+                m =>
+                  m.role ===
+                  "user"
+              );
+
+            return {
+
+              conversationId,
+
+              title:
+                firstUserMessage
+                  ?.content ||
+                "New Chat",
+
+              createdAt:
+                firstUserMessage
+                  ?.createdAt,
+
+              messages
+            };
+          }
+        )
+        .sort(
+          (a, b) =>
+            new Date(
+              b.createdAt
+            ) -
+            new Date(
+              a.createdAt
+            )
+        );
+
+    }, [history]);
+
   // SELECTED CHAT
-  const selectedChat =
-    history.find(
-      c =>
-        c.id ===
+  const selectedMessages =
+    history.filter(
+      item =>
+        item.conversationId ===
         selectedConversationId
     );
 
   // NEW CHAT
   const newChat = () => {
 
+    const id =
+      crypto.randomUUID();
+
     setSelectedConversationId(
-      null
+      id
     );
 
     setText("");
@@ -166,134 +179,166 @@ function App() {
   };
 
   // EXPLAIN
-  const explain =
-    async () => {
+  const explain = async () => {
 
-      if (!text.trim()) return;
+    if (!text.trim())
+      return;
 
-      const currentText = text;
+    if (!userData)
+      return;
 
-      const conversationId =
-        generateConversationId();
+    const currentText =
+      text;
 
-      const optimisticConversation = {
+    // USE EXISTING CHAT
+    let conversationId =
+      selectedConversationId;
 
-        id:
-          conversationId,
+    // CREATE ONLY IF NONE
+    if (!conversationId) {
 
-        question:
-          currentText,
-
-        answer:
-          "Generating response...",
-
-        createdAt:
-          new Date()
-            .toISOString()
-      };
-
-      setHistory(prev => [
-
-        optimisticConversation,
-
-        ...prev
-      ]);
+      conversationId =
+        crypto.randomUUID();
 
       setSelectedConversationId(
         conversationId
       );
+    }
 
-      setText("");
+    // TEMP USER
+    const userMessage = {
 
-      setStatus(
-        "Request queued successfully."
+      conversationId,
+
+      role: "user",
+
+      content:
+        currentText,
+
+      createdAt:
+        new Date().toISOString()
+    };
+
+    // TEMP AI
+    const assistantMessage = {
+
+      conversationId,
+
+      role:
+        "assistant",
+
+      content:
+        "Generating response...",
+
+      createdAt:
+        new Date().toISOString()
+    };
+
+    setHistory(prev => [
+
+      ...prev,
+
+      userMessage,
+
+      assistantMessage
+    ]);
+
+    setText("");
+
+    setStatus(
+      "Request queued successfully."
+    );
+
+    try {
+
+      await fetch(
+        `${API_BASE}/explain`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+
+            text:
+              currentText,
+
+            userId:
+              userData.userId,
+
+            email:
+              userData
+                .signInDetails
+                .loginId,
+
+            conversationId
+          })
+        }
       );
 
-      try {
+      // POLL
+      let attempts = 0;
 
-        await fetch(
-          `${API_BASE}/explain`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body: JSON.stringify({
-
-              text:
-                currentText,
-
-              userId:
-                userData.userId,
-
-              email:
-                userData
-                  .signInDetails
-                  .loginId,
-
-              conversationId
-            })
-          }
-        );
-
-        // POLLING
-        let attempts = 0;
-
-        const interval =
-          setInterval(async () => {
+      const interval =
+        setInterval(
+          async () => {
 
             attempts++;
 
             try {
 
-              const response =
+              await loadHistory(
+                userData
+              );
+
+              const updated =
                 await fetch(
                   `${API_BASE}/history?userId=${userData.userId}`
                 );
 
-              const data =
-                await response.json();
+              const latest =
+                await updated.json();
 
-              const safeData =
-                Array.isArray(data)
-                  ? data
+              const safeLatest =
+                Array.isArray(
+                  latest
+                )
+                  ? latest
                   : [];
 
-              const conversations =
-                buildConversations(
-                  safeData
-                );
+              const assistantReady =
+                safeLatest.some(
+                  item =>
 
-              setHistory(
-                conversations
-              );
+                    item.conversationId ===
+                      conversationId &&
 
-              const updated =
-                conversations.find(
-                  c =>
-                    c.id ===
-                    conversationId
+                    item.role ===
+                      "assistant" &&
+
+                    item.content !==
+                      "Generating response..."
                 );
 
               if (
-                updated &&
-                updated.answer !==
-                  "Generating response..."
+                assistantReady
               ) {
-
-                setStatus("");
 
                 clearInterval(
                   interval
                 );
+
+                setStatus("");
               }
 
             } catch (error) {
 
-              console.error(error);
+              console.error(
+                error
+              );
             }
 
             if (
@@ -307,27 +352,34 @@ function App() {
               setStatus("");
             }
 
-          }, 2000);
+          },
 
-      } catch (error) {
-
-        console.error(error);
-
-        setStatus(
-          "Something went wrong."
+          2000
         );
-      }
-    };
+
+    } catch (error) {
+
+      console.error(error);
+
+      setStatus(
+        "Something went wrong."
+      );
+    }
+  };
 
   return (
 
     <Authenticator>
 
-      {({ signOut, user }) => {
+      {({
+        signOut,
+        user
+      }) => {
 
+        // SAVE USER
         if (
-          user &&
-          !userData
+          !userData &&
+          user
         ) {
 
           setUserData(user);
@@ -337,16 +389,11 @@ function App() {
 
           <div
             style={{
-
               display: "flex",
-
               height: "100vh",
-
               background:
-                "#020b24",
-
+                "#020b2d",
               color: "white",
-
               fontFamily:
                 "Arial"
             }}
@@ -355,131 +402,100 @@ function App() {
             {/* SIDEBAR */}
             <div
               style={{
-
-                width: 320,
-
-                background:
-                  "#031133",
-
+                width: 340,
                 borderRight:
-                  "1px solid rgba(255,255,255,0.08)",
-
+                  "1px solid rgba(255,255,255,0.1)",
                 padding: 20,
-
-                overflowY: "auto"
+                overflowY:
+                  "auto"
               }}
             >
 
               <h2
                 style={{
-                  textAlign: "center"
+                  textAlign:
+                    "center"
                 }}
               >
                 Conversations
               </h2>
 
               <button
-
-                onClick={newChat}
-
+                onClick={
+                  newChat
+                }
                 style={{
-
-                  width: "100%",
-
-                  padding: 18,
-
+                  width:
+                    "100%",
+                  padding: 20,
                   borderRadius: 18,
-
-                  border: "none",
-
+                  border:
+                    "none",
                   background:
-                    "#3067e8",
-
-                  color: "white",
-
+                    "#3b82f6",
+                  color:
+                    "white",
+                  fontSize: 18,
                   fontWeight:
                     "bold",
-
-                  fontSize: 20,
-
-                  marginTop: 20,
-
-                  marginBottom: 30,
-
-                  cursor: "pointer"
+                  cursor:
+                    "pointer",
+                  marginBottom: 30
                 }}
               >
                 + New Chat
               </button>
 
-              {history.map(
-                (chat, index) => (
+              {conversations.map(
+                convo => (
 
                   <div
-
-                    key={index}
-
+                    key={
+                      convo.conversationId
+                    }
                     onClick={() =>
                       setSelectedConversationId(
-                        chat.id
+                        convo.conversationId
                       )
                     }
-
                     style={{
-
-                      padding: 20,
-
-                      borderRadius: 20,
-
-                      marginBottom: 18,
-
-                      cursor: "pointer",
-
+                      padding: 25,
+                      borderRadius: 22,
+                      marginBottom: 20,
+                      cursor:
+                        "pointer",
                       background:
                         selectedConversationId ===
-                        chat.id
-                          ? "#1c2b4a"
+                        convo.conversationId
+                          ? "rgba(255,255,255,0.12)"
                           : "transparent",
-
                       border:
                         "1px solid rgba(255,255,255,0.08)"
                     }}
                   >
 
-                    <div
+                    <h3
                       style={{
-
-                        fontWeight:
-                          "bold",
-
-                        marginBottom: 10,
-
-                        fontSize: 17
+                        margin: 0,
+                        fontSize: 18
                       }}
                     >
-                      {
-                        chat.question
-                          ?.length > 40
-                          ? chat.question.slice(
-                              0,
-                              40
-                            ) + "..."
-                          : chat.question
-                      }
-                    </div>
+                      {convo.title.slice(
+                        0,
+                        28
+                      )}
+                    </h3>
 
-                    <div
+                    <p
                       style={{
-
-                        fontSize: 12,
-
-                        opacity: 0.6
+                        opacity: 0.6,
+                        fontSize: 14
                       }}
                     >
                       {new Date(
-                        chat.createdAt
+                        convo.createdAt
                       ).toLocaleString()}
-                    </div>
+                    </p>
 
                   </div>
                 )
@@ -490,31 +506,24 @@ function App() {
             {/* MAIN */}
             <div
               style={{
-
                 flex: 1,
-
                 display: "flex",
-
                 flexDirection:
                   "column"
               }}
             >
 
+              {/* HEADER */}
               <div
                 style={{
-
                   padding: 30,
-
+                  borderBottom:
+                    "1px solid rgba(255,255,255,0.1)",
                   display: "flex",
-
                   justifyContent:
                     "space-between",
-
                   alignItems:
-                    "center",
-
-                  borderBottom:
-                    "1px solid rgba(255,255,255,0.08)"
+                    "center"
                 }}
               >
 
@@ -526,12 +535,14 @@ function App() {
                       fontSize: 72
                     }}
                   >
-                    Explain Like I'm 5
+                    Explain
+                    Like
+                    I'm 5
                   </h1>
 
                   <p
                     style={{
-                      opacity: 0.6
+                      opacity: 0.7
                     }}
                   >
                     {
@@ -544,29 +555,24 @@ function App() {
                 </div>
 
                 <button
-
-                  onClick={signOut}
-
+                  onClick={
+                    signOut
+                  }
                   style={{
-
                     background:
-                      "#ff4f4f",
-
-                    border: "none",
-
-                    color: "white",
-
-                    padding:
-                      "18px 28px",
-
+                      "#ff5252",
+                    color:
+                      "white",
+                    border:
+                      "none",
                     borderRadius: 20,
-
+                    padding:
+                      "20px 35px",
                     fontSize: 18,
-
                     fontWeight:
                       "bold",
-
-                    cursor: "pointer"
+                    cursor:
+                      "pointer"
                   }}
                 >
                   Sign Out
@@ -574,160 +580,120 @@ function App() {
 
               </div>
 
-              {/* CHAT AREA */}
+              {/* CHAT */}
               <div
                 style={{
-
                   flex: 1,
-
-                  overflowY: "auto",
-
-                  padding: 40
+                  overflowY:
+                    "auto",
+                  padding: 40,
+                  display: "flex",
+                  flexDirection:
+                    "column",
+                  gap: 30
                 }}
               >
 
-                {!selectedChat ? (
+                {selectedMessages.length ===
+                0 ? (
 
                   <div
                     style={{
-
                       textAlign:
                         "center",
-
-                      marginTop: 200,
-
-                      opacity: 0.6
+                      opacity: 0.6,
+                      marginTop: 120
                     }}
                   >
 
                     <h2>
-                      Ask anything
+                      Ask
+                      anything
                     </h2>
 
                     <p>
-                      Your simplified explanations
-                      will appear here.
+                      Your
+                      simplified
+                      explanations
+                      will
+                      appear
+                      here.
                     </p>
 
                   </div>
 
                 ) : (
 
-                  <>
-                    {/* USER */}
-                    <div
-                      style={{
-
-                        display: "flex",
-
-                        justifyContent:
-                          "flex-end",
-
-                        marginBottom: 40
-                      }}
-                    >
+                  selectedMessages.map(
+                    (
+                      message,
+                      index
+                    ) => (
 
                       <div
-                        style={{
-
-                          background:
-                            "#3067e8",
-
-                          padding: 24,
-
-                          borderRadius: 30,
-
-                          maxWidth: "45%"
-                        }}
-                      >
-
-                        <div
-                          style={{
-
-                            fontSize: 13,
-
-                            opacity: 0.7,
-
-                            marginBottom: 10,
-
-                            fontWeight:
-                              "bold"
-                          }}
-                        >
-                          You
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: 22,
-                            lineHeight: 1.7
-                          }}
-                        >
-                          {
-                            selectedChat.question
-                          }
-                        </div>
-
-                      </div>
-
-                    </div>
-
-                    {/* AI */}
-                    <div
-                      style={{
-
-                        display: "flex",
-
-                        justifyContent:
-                          "flex-start"
-                      }}
-                    >
-
-                      <div
-                        style={{
-
-                          background:
-                            "#1c2b4a",
-
-                          padding: 34,
-
-                          borderRadius: 30,
-
-                          maxWidth: "75%",
-
-                          fontSize: 22,
-
-                          lineHeight: 1.9,
-
-                          whiteSpace:
-                            "pre-wrap"
-                        }}
-                      >
-
-                        <div
-                          style={{
-
-                            fontSize: 13,
-
-                            opacity: 0.7,
-
-                            marginBottom: 18,
-
-                            fontWeight:
-                              "bold"
-                          }}
-                        >
-                          ELI5 AI
-                        </div>
-
-                        {
-                          selectedChat.answer
+                        key={
+                          index
                         }
+                        style={{
+                          display:
+                            "flex",
+                          justifyContent:
+                            message.role ===
+                            "user"
+                              ? "flex-end"
+                              : "flex-start"
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            maxWidth:
+                              "65%",
+                            padding: 35,
+                            borderRadius: 28,
+                            background:
+                              message.role ===
+                              "user"
+                                ? "#3b82f6"
+                                : "#1f2d52",
+                            lineHeight: 1.8,
+                            fontSize: 18,
+                            boxShadow:
+                              "0 8px 30px rgba(0,0,0,0.25)"
+                          }}
+                        >
+
+                          <div
+                            style={{
+                              fontSize: 14,
+                              opacity: 0.7,
+                              marginBottom: 18,
+                              fontWeight:
+                                "bold"
+                            }}
+                          >
+                            {message.role ===
+                            "user"
+                              ? "You"
+                              : "ELI5 AI"}
+                          </div>
+
+                          <div
+                            style={{
+                              whiteSpace:
+                                "pre-wrap"
+                            }}
+                          >
+                            {
+                              message.content
+                            }
+                          </div>
+
+                        </div>
 
                       </div>
-
-                    </div>
-                  </>
+                    )
+                  )
                 )}
 
               </div>
@@ -735,80 +701,59 @@ function App() {
               {/* INPUT */}
               <div
                 style={{
-
-                  padding: 25,
-
+                  padding: 30,
                   borderTop:
-                    "1px solid rgba(255,255,255,0.08)",
-
+                    "1px solid rgba(255,255,255,0.1)",
                   display: "flex",
-
                   gap: 20
                 }}
               >
 
                 <textarea
-
-                  rows={2}
-
                   value={text}
-
-                  onChange={(e) =>
+                  onChange={e =>
                     setText(
                       e.target.value
                     )
                   }
-
                   placeholder="Ask something complicated..."
-
+                  rows={2}
                   style={{
-
                     flex: 1,
-
                     background:
                       "transparent",
-
                     border:
-                      "1px solid rgba(255,255,255,0.12)",
-
-                    borderRadius: 22,
-
-                    color: "white",
-
-                    padding: 24,
-
-                    fontSize: 20,
-
-                    resize: "none",
-
-                    outline: "none"
+                      "1px solid rgba(255,255,255,0.2)",
+                    color:
+                      "white",
+                    borderRadius: 24,
+                    padding: 30,
+                    fontSize: 18,
+                    resize:
+                      "none",
+                    outline:
+                      "none"
                   }}
                 />
 
                 <button
-
-                  onClick={explain}
-
+                  onClick={
+                    explain
+                  }
                   style={{
-
+                    width: 220,
+                    border:
+                      "none",
+                    borderRadius: 28,
                     background:
-                      "#4285f4",
-
-                    border: "none",
-
-                    color: "white",
-
-                    padding:
-                      "0 40px",
-
-                    borderRadius: 22,
-
+                      "#4f8dfd",
+                    color:
+                      "white",
+                    fontSize: 24,
                     fontWeight:
                       "bold",
-
-                    fontSize: 24,
-
-                    cursor: "pointer"
+                    cursor:
+                      "pointer"
                   }}
                 >
                   Explain
@@ -820,12 +765,9 @@ function App() {
 
                 <div
                   style={{
-
                     textAlign:
                       "center",
-
-                    paddingBottom: 18,
-
+                    paddingBottom: 15,
                     opacity: 0.7
                   }}
                 >
