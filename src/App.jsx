@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-
-import {
-  Authenticator
-} from "@aws-amplify/ui-react";
+import { Authenticator } from "@aws-amplify/ui-react";
 
 function App() {
 
@@ -18,57 +15,80 @@ function App() {
   const [history, setHistory] =
     useState([]);
 
-  const [selectedId,
-    setSelectedId] =
+  const [selectedConversationId,
+    setSelectedConversationId] =
       useState(null);
 
   const [userData,
     setUserData] =
       useState(null);
 
+  // GENERATE UUID
+  const generateConversationId =
+    () => {
+
+      return crypto.randomUUID();
+    };
+
   // BUILD CONVERSATIONS
   const buildConversations =
     (items) => {
 
-      const conversations = [];
+      const grouped = {};
 
-      for (
-        let i = 0;
-        i < items.length;
-        i++
-      ) {
-
-        const current =
-          items[i];
+      items.forEach(item => {
 
         if (
-          current.role === "user"
+          !grouped[item.conversationId]
         ) {
 
-          const assistant =
-            items[i + 1];
-
-          conversations.push({
+          grouped[item.conversationId] = {
 
             id:
-              current.createdAt,
-
-            question:
-              current.content,
-
-            answer:
-              assistant?.role ===
-              "assistant"
-                ? assistant.content
-                : "Generating response...",
+              item.conversationId,
 
             createdAt:
-              current.createdAt
-          });
-        }
-      }
+              item.createdAt,
 
-      return conversations;
+            question: "",
+
+            answer:
+              "Generating response..."
+          };
+        }
+
+        if (
+          item.role === "user"
+        ) {
+
+          grouped[
+            item.conversationId
+          ].question =
+            item.content;
+        }
+
+        if (
+          item.role ===
+          "assistant"
+        ) {
+
+          grouped[
+            item.conversationId
+          ].answer =
+            item.content;
+        }
+      });
+
+      return Object.values(grouped)
+        .sort(
+          (a, b) =>
+            new Date(
+              b.createdAt
+            ) -
+            new Date(
+              a.createdAt
+            )
+        );
     };
 
   // LOAD HISTORY
@@ -101,10 +121,10 @@ function App() {
 
         if (
           conversations.length > 0 &&
-          !selectedId
+          !selectedConversationId
         ) {
 
-          setSelectedId(
+          setSelectedConversationId(
             conversations[0].id
           );
         }
@@ -128,13 +148,17 @@ function App() {
   // SELECTED CHAT
   const selectedChat =
     history.find(
-      c => c.id === selectedId
+      c =>
+        c.id ===
+        selectedConversationId
     );
 
   // NEW CHAT
   const newChat = () => {
 
-    setSelectedId(null);
+    setSelectedConversationId(
+      null
+    );
 
     setText("");
 
@@ -149,20 +173,23 @@ function App() {
 
       const currentText = text;
 
-      const optimisticId =
-        new Date().toISOString();
+      const conversationId =
+        generateConversationId();
 
       const optimisticConversation = {
 
-        id: optimisticId,
+        id:
+          conversationId,
 
-        question: currentText,
+        question:
+          currentText,
 
         answer:
           "Generating response...",
 
         createdAt:
-          optimisticId
+          new Date()
+            .toISOString()
       };
 
       setHistory(prev => [
@@ -172,8 +199,8 @@ function App() {
         ...prev
       ]);
 
-      setSelectedId(
-        optimisticId
+      setSelectedConversationId(
+        conversationId
       );
 
       setText("");
@@ -196,14 +223,18 @@ function App() {
 
             body: JSON.stringify({
 
-              text: currentText,
+              text:
+                currentText,
 
               userId:
                 userData.userId,
 
               email:
-                userData.signInDetails
-                  .loginId
+                userData
+                  .signInDetails
+                  .loginId,
+
+              conversationId
             })
           }
         );
@@ -243,8 +274,8 @@ function App() {
               const updated =
                 conversations.find(
                   c =>
-                    c.question ===
-                    currentText
+                    c.id ===
+                    conversationId
                 );
 
               if (
@@ -252,10 +283,6 @@ function App() {
                 updated.answer !==
                   "Generating response..."
               ) {
-
-                setSelectedId(
-                  updated.id
-                );
 
                 setStatus("");
 
@@ -270,7 +297,7 @@ function App() {
             }
 
             if (
-              attempts >= 15
+              attempts >= 20
             ) {
 
               clearInterval(
@@ -393,7 +420,7 @@ function App() {
                     key={index}
 
                     onClick={() =>
-                      setSelectedId(
+                      setSelectedConversationId(
                         chat.id
                       )
                     }
@@ -409,7 +436,7 @@ function App() {
                       cursor: "pointer",
 
                       background:
-                        selectedId ===
+                        selectedConversationId ===
                         chat.id
                           ? "#1c2b4a"
                           : "transparent",
@@ -432,7 +459,7 @@ function App() {
                     >
                       {
                         chat.question
-                          .length > 40
+                          ?.length > 40
                           ? chat.question.slice(
                               0,
                               40
@@ -473,7 +500,6 @@ function App() {
               }}
             >
 
-              {/* HEADER */}
               <div
                 style={{
 
