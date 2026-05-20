@@ -20,10 +20,8 @@ function App() {
     setSelectedConversationId
   ] = useState(null);
 
-  const [
-    userData,
-    setUserData
-  ] = useState(null);
+  const [userData, setUserData] =
+    useState(null);
 
   // LOAD HISTORY
   const loadHistory = async (
@@ -48,7 +46,6 @@ function App() {
           ? data
           : [];
 
-      // SORT
       safeData.sort(
         (a, b) =>
           new Date(a.createdAt) -
@@ -57,19 +54,14 @@ function App() {
 
       setHistory(safeData);
 
-      // AUTO-SELECT MOST RECENT CHAT
+      // SELECT FIRST CONVERSATION IF NONE
       if (
-        safeData.length > 0 &&
-        !selectedConversationId
+        !selectedConversationId &&
+        safeData.length > 0
       ) {
 
-        const latest =
-          safeData[
-            safeData.length - 1
-          ];
-
         setSelectedConversationId(
-          latest.conversationId
+          safeData[0].conversationId
         );
       }
 
@@ -113,13 +105,11 @@ function App() {
         ].push(item);
       });
 
-      return Object.entries(
-        grouped
-      )
+      return Object.entries(grouped)
         .map(
           ([conversationId, messages]) => {
 
-            const firstUserMessage =
+            const firstUser =
               messages.find(
                 m =>
                   m.role ===
@@ -131,13 +121,15 @@ function App() {
               conversationId,
 
               title:
-                firstUserMessage
+                firstUser
                   ?.content ||
                 "New Chat",
 
               createdAt:
-                firstUserMessage
-                  ?.createdAt,
+                firstUser
+                  ?.createdAt ||
+
+                new Date().toISOString(),
 
               messages
             };
@@ -145,17 +137,13 @@ function App() {
         )
         .sort(
           (a, b) =>
-            new Date(
-              b.createdAt
-            ) -
-            new Date(
-              a.createdAt
-            )
+            new Date(b.createdAt) -
+            new Date(a.createdAt)
         );
 
     }, [history]);
 
-  // SELECTED CHAT
+  // CURRENT CHAT
   const selectedMessages =
     history.filter(
       item =>
@@ -166,16 +154,16 @@ function App() {
   // NEW CHAT
   const newChat = () => {
 
-    const id =
+    const newId =
       crypto.randomUUID();
 
     setSelectedConversationId(
-      id
+      newId
     );
 
-    setText("");
-
     setStatus("");
+
+    setText("");
   };
 
   // EXPLAIN
@@ -187,14 +175,10 @@ function App() {
     if (!userData)
       return;
 
-    const currentText =
-      text;
-
-    // USE EXISTING CHAT
     let conversationId =
       selectedConversationId;
 
-    // CREATE ONLY IF NONE
+    // ONLY CREATE IF THERE IS NO CHAT YET
     if (!conversationId) {
 
       conversationId =
@@ -205,8 +189,11 @@ function App() {
       );
     }
 
-    // TEMP USER
-    const userMessage = {
+    const currentText =
+      text;
+
+    // TEMP USER MESSAGE
+    const tempUser = {
 
       conversationId,
 
@@ -219,8 +206,8 @@ function App() {
         new Date().toISOString()
     };
 
-    // TEMP AI
-    const assistantMessage = {
+    // TEMP AI MESSAGE
+    const tempAI = {
 
       conversationId,
 
@@ -238,15 +225,15 @@ function App() {
 
       ...prev,
 
-      userMessage,
+      tempUser,
 
-      assistantMessage
+      tempAI
     ]);
 
     setText("");
 
     setStatus(
-      "Request queued successfully."
+      "Generating explanation..."
     );
 
     try {
@@ -279,38 +266,34 @@ function App() {
         }
       );
 
-      // POLL
-      let attempts = 0;
+      // POLL UNTIL AI RESPONSE EXISTS
+      let tries = 0;
 
       const interval =
         setInterval(
           async () => {
 
-            attempts++;
+            tries++;
 
             try {
 
-              await loadHistory(
-                userData
-              );
-
-              const updated =
+              const response =
                 await fetch(
                   `${API_BASE}/history?userId=${userData.userId}`
                 );
 
               const latest =
-                await updated.json();
+                await response.json();
 
               const safeLatest =
-                Array.isArray(
-                  latest
-                )
+                Array.isArray(latest)
                   ? latest
                   : [];
 
-              const assistantReady =
-                safeLatest.some(
+              setHistory(safeLatest);
+
+              const realAssistant =
+                safeLatest.find(
                   item =>
 
                     item.conversationId ===
@@ -324,14 +307,14 @@ function App() {
                 );
 
               if (
-                assistantReady
+                realAssistant
               ) {
+
+                setStatus("");
 
                 clearInterval(
                   interval
                 );
-
-                setStatus("");
               }
 
             } catch (error) {
@@ -341,9 +324,7 @@ function App() {
               );
             }
 
-            if (
-              attempts >= 20
-            ) {
+            if (tries > 20) {
 
               clearInterval(
                 interval
@@ -376,7 +357,6 @@ function App() {
         user
       }) => {
 
-        // SAVE USER
         if (
           !userData &&
           user
@@ -404,7 +384,7 @@ function App() {
               style={{
                 width: 340,
                 borderRight:
-                  "1px solid rgba(255,255,255,0.1)",
+                  "1px solid rgba(255,255,255,0.08)",
                 padding: 20,
                 overflowY:
                   "auto"
@@ -474,12 +454,7 @@ function App() {
                     }}
                   >
 
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: 18
-                      }}
-                    >
+                    <h3>
                       {convo.title.slice(
                         0,
                         28
@@ -488,8 +463,7 @@ function App() {
 
                     <p
                       style={{
-                        opacity: 0.6,
-                        fontSize: 14
+                        opacity: 0.6
                       }}
                     >
                       {new Date(
@@ -518,7 +492,7 @@ function App() {
                 style={{
                   padding: 30,
                   borderBottom:
-                    "1px solid rgba(255,255,255,0.1)",
+                    "1px solid rgba(255,255,255,0.08)",
                   display: "flex",
                   justifyContent:
                     "space-between",
@@ -531,13 +505,11 @@ function App() {
 
                   <h1
                     style={{
-                      margin: 0,
-                      fontSize: 72
+                      fontSize: 72,
+                      margin: 0
                     }}
                   >
-                    Explain
-                    Like
-                    I'm 5
+                    Explain Like I'm 5
                   </h1>
 
                   <p
@@ -561,13 +533,13 @@ function App() {
                   style={{
                     background:
                       "#ff5252",
-                    color:
-                      "white",
                     border:
                       "none",
-                    borderRadius: 20,
+                    borderRadius: 18,
+                    color:
+                      "white",
                     padding:
-                      "20px 35px",
+                      "18px 30px",
                     fontSize: 18,
                     fontWeight:
                       "bold",
@@ -607,17 +579,11 @@ function App() {
                   >
 
                     <h2>
-                      Ask
-                      anything
+                      Ask anything
                     </h2>
 
                     <p>
-                      Your
-                      simplified
-                      explanations
-                      will
-                      appear
-                      here.
+                      Your explanations will appear here.
                     </p>
 
                   </div>
@@ -649,17 +615,15 @@ function App() {
                           style={{
                             maxWidth:
                               "65%",
-                            padding: 35,
-                            borderRadius: 28,
                             background:
                               message.role ===
                               "user"
                                 ? "#3b82f6"
                                 : "#1f2d52",
+                            padding: 35,
+                            borderRadius: 28,
                             lineHeight: 1.8,
-                            fontSize: 18,
-                            boxShadow:
-                              "0 8px 30px rgba(0,0,0,0.25)"
+                            fontSize: 20
                           }}
                         >
 
@@ -667,7 +631,7 @@ function App() {
                             style={{
                               fontSize: 14,
                               opacity: 0.7,
-                              marginBottom: 18,
+                              marginBottom: 15,
                               fontWeight:
                                 "bold"
                             }}
@@ -703,7 +667,7 @@ function App() {
                 style={{
                   padding: 30,
                   borderTop:
-                    "1px solid rgba(255,255,255,0.1)",
+                    "1px solid rgba(255,255,255,0.08)",
                   display: "flex",
                   gap: 20
                 }}
