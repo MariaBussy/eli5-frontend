@@ -1,60 +1,43 @@
-import {
-useEffect,
-useMemo,
-useState
-} from "react";
-
-import {
-Authenticator
-}
-from "@aws-amplify/ui-react";
+import { useEffect, useMemo, useState } from "react";
+import { Authenticator } from "@aws-amplify/ui-react";
 
 const API_BASE =
 "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
 function App() {
 
-const [text,setText]=
-useState("");
+const [text,setText]=useState("");
 
-const [status,setStatus]=
-useState("");
+const [status,setStatus]=useState("");
 
-const [history,setHistory]=
-useState([]);
+const [history,setHistory]=useState([]);
 
 const [
 selectedConversationId,
 setSelectedConversationId
 ]=useState(null);
 
-const [
-userData,
-setUserData
-]=useState(null);
+const [userData,setUserData]=useState(null);
 
-const [
-loading,
-setLoading
-]=useState(false);
+const [loading,setLoading]=useState(false);
 
-// ---------- HISTORY ----------
+// --------------------
 
-const loadHistory =
-async(user)=>{
+const loadHistory=
+async(currentUser)=>{
 
-if(!user?.userId)
+if(!currentUser?.userId)
 return;
 
 try{
 
-const res=
+const response=
 await fetch(
-`${API_BASE}/history?userId=${user.userId}`
+`${API_BASE}/history?userId=${currentUser.userId}`
 );
 
 const data=
-await res.json();
+await response.json();
 
 const rows=
 Array.isArray(data)
@@ -69,18 +52,6 @@ new Date(b.createdAt)
 
 setHistory(rows);
 
-if(
-!selectedConversationId &&
-rows.length
-){
-
-setSelectedConversationId(
-rows.at(-1)
-.conversationId
-);
-
-}
-
 }
 catch(err){
 
@@ -89,6 +60,8 @@ console.error(err);
 }
 
 };
+
+// --------------------
 
 useEffect(()=>{
 
@@ -100,39 +73,42 @@ userData
 
 }
 
-},[userData]);
+},[
+userData
+]);
 
-// ---------- CONVERSATIONS ----------
+// --------------------
 
 const conversations=
 useMemo(()=>{
 
-const map={};
+const grouped={};
 
-history.forEach(m=>{
+history.forEach(item=>{
 
 if(
-!map[
-m.conversationId
+!grouped[
+item.conversationId
 ]
 ){
 
-map[
-m.conversationId
+grouped[
+item.conversationId
 ]=[];
 
 }
 
-map[
-m.conversationId
-].push(m);
+grouped[
+item.conversationId
+].push(item);
 
 });
 
 return Object
-.values(map)
+.entries(grouped)
 
-.map(messages=>{
+.map(
+([id,messages])=>{
 
 messages.sort(
 (a,b)=>
@@ -148,18 +124,15 @@ m.role==="user"
 
 return{
 
-conversationId:
-first
-?.conversationId,
+conversationId:id,
 
 title:
-first
-?.content ||
+first?.content
+||
 "New Chat",
 
 createdAt:
-first
-?.createdAt,
+first?.createdAt,
 
 messages
 
@@ -169,9 +142,11 @@ messages
 
 .sort(
 (a,b)=>
+
 new Date(
 b.createdAt
 )-
+
 new Date(
 a.createdAt
 )
@@ -181,7 +156,7 @@ a.createdAt
 history
 ]);
 
-// ---------- CHAT ----------
+// --------------------
 
 const selectedMessages=
 useMemo(()=>{
@@ -213,7 +188,7 @@ history,
 selectedConversationId
 ]);
 
-// ---------- NEW CHAT ----------
+// --------------------
 
 const newChat=()=>{
 
@@ -227,13 +202,14 @@ setStatus("");
 
 };
 
-// ---------- EXPLAIN ----------
+// --------------------
 
 const explain=
 async()=>{
 
 if(
-!text.trim() ||
+!text.trim()
+||
 loading
 )
 return;
@@ -242,47 +218,71 @@ setLoading(
 true
 );
 
-const message=
+const question=
 text.trim();
 
 setText("");
 
-let convo=
+let conversationId=
 selectedConversationId;
 
-if(!convo){
+if(
+!conversationId
+){
 
-convo=
+conversationId=
 crypto.randomUUID();
 
 setSelectedConversationId(
-convo
+conversationId
 );
 
 }
 
 const optimistic={
 
-conversationId:
-convo,
+conversationId,
 
 role:
 "user",
 
 content:
-message,
+question,
 
 createdAt:
-new Date()
-.toISOString()
+"pending"
 };
 
 setHistory(
-prev=>
-[
+prev=>{
+
+const exists=
+prev.some(
+
+m=>
+
+m.content===
+question &&
+
+m.role===
+"user" &&
+
+m.conversationId===
+conversationId
+);
+
+if(exists)
+return prev;
+
+return[
 ...prev,
 optimistic
-]
+];
+
+});
+
+setStatus(
+"Generating..."
 );
 
 try{
@@ -303,7 +303,7 @@ body:
 JSON.stringify({
 
 text:
-message,
+question,
 
 userId:
 userData.userId,
@@ -313,16 +313,11 @@ userData
 .signInDetails
 .loginId,
 
-conversationId:
-convo
+conversationId
 
 })
 
 }
-);
-
-setStatus(
-"Generating..."
 );
 
 let attempts=0;
@@ -333,50 +328,108 @@ async()=>{
 
 attempts++;
 
-await loadHistory(
-userData
+const res=
+await fetch(
+`${API_BASE}/history?userId=${userData.userId}`
 );
 
-const updated=
-history.filter(
+const latest=
+await res.json();
+
+const rows=
+Array.isArray(
+latest
+)
+?
+latest
+:
+[];
+
+rows.sort(
+(a,b)=>
+new Date(a.createdAt)-
+new Date(b.createdAt)
+);
+
+const hasAnswer=
+rows.some(
+
 m=>
 
-m.conversationId===
-convo &&
-
 m.role===
-"assistant"
+"assistant" &&
+
+m.conversationId===
+conversationId
 );
 
+setHistory(
+prev=>{
+
+const keep=
+prev.filter(
+x=>
+
+x.createdAt!==
+"pending"
+);
+
+const merged=[
+...keep,
+...rows
+];
+
+return merged.filter(
+(item,index,self)=>
+
+index===
+
+self.findIndex(
+x=>
+
+x.role===
+item.role &&
+
+x.content===
+item.content &&
+
+x.createdAt===
+item.createdAt
+)
+
+);
+
+});
+
 if(
-updated.length
+hasAnswer
 ){
 
 clearInterval(
 timer
 );
 
+setStatus("");
+
 setLoading(
 false
 );
-
-setStatus("");
 
 }
 
 if(
-attempts>15
+attempts>20
 ){
 
 clearInterval(
 timer
 );
 
+setStatus("");
+
 setLoading(
 false
 );
-
-setStatus("");
 
 }
 
@@ -391,19 +444,19 @@ console.error(
 err
 );
 
-setLoading(
-false
+setStatus(
+"Failed"
 );
 
-setStatus(
-"Failed."
+setLoading(
+false
 );
 
 }
 
 };
 
-// ---------- UI ----------
+// --------------------
 
 return(
 
@@ -439,8 +492,7 @@ color:"white"
 <div
 style={{
 width:340,
-padding:20,
-overflowY:"auto"
+padding:20
 }}
 >
 
@@ -454,10 +506,12 @@ newChat
 }
 style={{
 width:"100%",
-height:72
+height:80
 }}
 >
+
 + New Chat
+
 </button>
 
 {
@@ -479,27 +533,35 @@ c.conversationId
 }
 
 style={{
-padding:20,
+padding:25,
 marginTop:20,
 cursor:"pointer",
 background:
+
 selectedConversationId===
+
 c.conversationId
+
 ?
-"#223257"
+
+"#243760"
+
 :
+
 "transparent"
 }}
 >
 
 <h3>
+
 {
 c.title
 .slice(
 0,
-26
+28
 )
 }
+
 </h3>
 
 <div>
@@ -530,13 +592,21 @@ flexDirection:"column"
 
 <div
 style={{
-padding:40
+padding:30
 }}
 >
 
 <h1>
 Explain Like I'm 5
 </h1>
+
+<p>
+{
+user
+?.signInDetails
+?.loginId
+}
+</p>
 
 <button
 onClick={
@@ -568,8 +638,7 @@ i
 
 style={{
 
-display:
-"flex",
+display:"flex",
 
 justifyContent:
 
@@ -591,9 +660,8 @@ m.role===
 <div
 style={{
 maxWidth:700,
-padding:30,
-borderRadius:24,
-marginBottom:20,
+padding:35,
+borderRadius:28,
 background:
 
 m.role===
@@ -605,7 +673,9 @@ m.role===
 
 :
 
-"#223257"
+"#223257",
+
+marginBottom:20
 }}
 >
 
