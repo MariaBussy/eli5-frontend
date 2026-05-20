@@ -1,221 +1,188 @@
-import { useEffect, useMemo, useState } from "react";
-import { Authenticator } from "@aws-amplify/ui-react";
+import "./App.css";
+import { useEffect, useState } from "react";
+import crypto from "crypto-js";
 
 const API_BASE =
-"https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+process.env.REACT_APP_API_URL;
 
-function App() {
+export default function App() {
 
-const [text,setText]=useState("");
+const [userData,setUserData]=
+useState(null);
 
-const [status,setStatus]=useState("");
+const [history,setHistory]=
+useState([]);
 
-const [history,setHistory]=useState([]);
+const [text,setText]=
+useState("");
 
-const [
-selectedConversationId,
-setSelectedConversationId
-]=useState(null);
+const [loading,setLoading]=
+useState(false);
 
-const [userData,setUserData]=useState(null);
+const [selectedConversationId,
+setSelectedConversationId]=
+useState(null);
 
-const [loading,setLoading]=useState(false);
+const [status,setStatus]=
+useState("");
 
-// --------------------
 
-const loadHistory=
-async(currentUser)=>{
-
-if(!currentUser?.userId)
-return;
-
-try{
-
-const response=
-await fetch(
-`${API_BASE}/history?userId=${currentUser.userId}`
-);
-
-const data=
-await response.json();
-
-const rows=
-Array.isArray(data)
-?data
-:[];
-
-rows.sort(
-(a,b)=>
-new Date(a.createdAt)-
-new Date(b.createdAt)
-);
-
-setHistory(rows);
-
-}
-catch(err){
-
-console.error(err);
-
-}
-
-};
-
-// --------------------
+// LOAD USER
 
 useEffect(()=>{
 
-if(userData){
+const stored=
+localStorage.getItem(
+"user"
+);
 
-loadHistory(
-userData
+if(stored){
+
+setUserData(
+JSON.parse(
+stored
+)
 );
 
 }
 
-},[
-userData
-]);
+},[]);
 
-// --------------------
+
+// LOAD HISTORY
+
+useEffect(()=>{
+
+if(!userData)
+return;
+
+loadHistory();
+
+},[userData]);
+
+
+const loadHistory=
+async()=>{
+
+try{
+
+const res=
+await fetch(
+`${API_BASE}/history?userId=${userData.userId}`
+);
+
+const rows=
+await res.json();
+
+rows.sort(
+(a,b)=>
+new Date(
+a.createdAt
+)
+-
+new Date(
+b.createdAt
+)
+);
+
+setHistory(
+rows
+);
+
+}
+catch(e){
+
+console.log(
+e
+);
+
+}
+
+};
+
+
+// CONVERSATIONS
 
 const conversations=
-useMemo(()=>{
+Object.values(
 
-const grouped={};
+history.reduce(
+(acc,msg)=>{
 
-history.forEach(item=>{
+const id=
+msg.conversationId;
 
 if(
-!grouped[
-item.conversationId
-]
+!acc[id]
 ){
 
-grouped[
-item.conversationId
-]=[];
+acc[id]={
+id,
+title:
+msg.content,
+createdAt:
+msg.createdAt
+};
 
 }
 
-grouped[
-item.conversationId
-].push(item);
+return acc;
 
-});
+},
+{}
+)
 
-return Object
-.entries(grouped)
-
-.map(
-([id,messages])=>{
-
-messages.sort(
+).sort(
 (a,b)=>
-new Date(a.createdAt)-
-new Date(b.createdAt)
-);
-
-const first=
-messages.find(
-m=>
-m.role==="user"
-);
-
-return{
-
-conversationId:id,
-
-title:
-first?.content
-||
-"New Chat",
-
-createdAt:
-first?.createdAt,
-
-messages
-
-};
-
-})
-
-.sort(
-(a,b)=>
-
 new Date(
 b.createdAt
-)-
-
+)
+-
 new Date(
 a.createdAt
 )
 );
 
-},[
-history
-]);
 
-// --------------------
+// CURRENT CHAT
 
-const selectedMessages=
-useMemo(()=>{
+const current=
+history.filter(
 
-return history
-
-.filter(
 m=>
+
+selectedConversationId
+
+?
 
 m.conversationId===
-
 selectedConversationId
-)
 
-.sort(
-(a,b)=>
+:
 
-new Date(
-a.createdAt
-)-
+false
 
-new Date(
-b.createdAt
-)
 );
 
-},[
-history,
-selectedConversationId
-]);
 
-// --------------------
-
-const newChat=()=>{
-
-setSelectedConversationId(
-null
-);
-
-setText("");
-
-setStatus("");
-
-};
-
-// --------------------
+// SEND MESSAGE
 
 const explain=
 async()=>{
 
 if(
-!text.trim()
-||
 loading
+||
+!text.trim()
 )
 return;
 
 setLoading(
 true
+);
+
+setStatus(
+"Generating..."
 );
 
 const question=
@@ -226,64 +193,24 @@ setText("");
 let conversationId=
 selectedConversationId;
 
+
+// create only if none selected
+
 if(
 !conversationId
 ){
 
 conversationId=
-crypto.randomUUID();
+crypto
+.lib.WordArray
+.random(16)
+.toString();
 
 setSelectedConversationId(
 conversationId
 );
 
 }
-
-const optimistic={
-
-conversationId,
-
-role:
-"user",
-
-content:
-question,
-
-createdAt:
-"pending"
-};
-
-setHistory(
-prev=>{
-
-const exists=
-prev.some(
-
-m=>
-
-m.content===
-question &&
-
-m.role===
-"user" &&
-
-m.conversationId===
-conversationId
-);
-
-if(exists)
-return prev;
-
-return[
-...prev,
-optimistic
-];
-
-});
-
-setStatus(
-"Generating..."
-);
 
 try{
 
@@ -309,8 +236,7 @@ userId:
 userData.userId,
 
 email:
-userData
-.signInDetails
+userData.signInDetails
 .loginId,
 
 conversationId
@@ -318,12 +244,17 @@ conversationId
 })
 
 }
+
 );
+
+
+// poll
 
 let attempts=0;
 
-const timer=
+const interval=
 setInterval(
+
 async()=>{
 
 attempts++;
@@ -333,168 +264,157 @@ await fetch(
 `${API_BASE}/history?userId=${userData.userId}`
 );
 
-const latest=
-await res.json();
-
 const rows=
-Array.isArray(
-latest
-)
-?
-latest
-:
-[];
+await res.json();
 
 rows.sort(
 (a,b)=>
-new Date(a.createdAt)-
-new Date(b.createdAt)
-);
-
-const hasAnswer=
-rows.some(
-
-m=>
-
-m.role===
-"assistant" &&
-
-m.conversationId===
-conversationId
+new Date(
+a.createdAt
+)
+-
+new Date(
+b.createdAt
+)
 );
 
 setHistory(
-prev=>{
+rows);
 
-const keep=
-prev.filter(
-x=>
 
-x.createdAt!==
-"pending"
-);
+// assistant exists?
 
-const merged=[
-...keep,
-...rows
-];
+const assistant=
+rows.filter(
 
-return merged.filter(
-(item,index,self)=>
+m=>
 
-index===
+m.conversationId===
+conversationId
 
-self.findIndex(
-x=>
+&&
 
-x.role===
-item.role &&
-
-x.content===
-item.content &&
-
-x.createdAt===
-item.createdAt
-)
+m.role===
+"assistant"
 
 );
 
-});
+const user=
+rows.filter(
+
+m=>
+
+m.conversationId===
+conversationId
+
+&&
+
+m.role===
+"user"
+
+);
+
+
+// stop when pairs complete
 
 if(
-hasAnswer
+assistant.length
+>=
+user.length
 ){
 
 clearInterval(
-timer
+interval
 );
-
-setStatus("");
 
 setLoading(
 false
 );
+
+setStatus(
+"");
 
 }
 
+
+// timeout
+
 if(
-attempts>20
+attempts>
+30
 ){
 
 clearInterval(
-timer
+interval
 );
-
-setStatus("");
 
 setLoading(
 false
+);
+
+setStatus(
+"Timeout"
 );
 
 }
 
 },
-2500
+2000
 );
 
 }
-catch(err){
+catch(e){
 
-console.error(
-err
+console.log(
+e
+);
+
+setLoading(
+false
 );
 
 setStatus(
 "Failed"
 );
 
-setLoading(
-false
-);
-
 }
 
 };
 
-// --------------------
 
-return(
+// NEW CHAT
 
-<Authenticator>
+const newChat=
+()=>{
 
-{({
-user,
-signOut
-})=>{
-
-if(
-!userData &&
-user
-){
-
-setUserData(
-user
+setSelectedConversationId(
+null
 );
 
-}
+setStatus("");
+
+setText("");
+
+};
+
+
+// SIGN OUT
+
+const logout=
+()=>{
+
+localStorage.clear();
+
+window.location.reload();
+
+};
+
 
 return(
 
-<div
-style={{
-display:"flex",
-height:"100vh",
-background:"#020b2d",
-color:"white"
-}}
->
+<div className="app">
 
-<div
-style={{
-width:340,
-padding:20
-}}
->
+<div className="sidebar">
 
 <h2>
 Conversations
@@ -504,186 +424,147 @@ Conversations
 onClick={
 newChat
 }
-style={{
-width:"100%",
-height:80
-}}
 >
 
 + New Chat
 
 </button>
 
+
 {
+
 conversations.map(
-c=>(
+
+c=>
 
 <div
 
 key={
-c.conversationId
+c.id
+}
+
+className={
+selectedConversationId===
+c.id
+
+?
+
+"conversation active"
+
+:
+
+"conversation"
 }
 
 onClick={()=>
 
 setSelectedConversationId(
-c.conversationId
+c.id
 )
 
 }
 
-style={{
-padding:25,
-marginTop:20,
-cursor:"pointer",
-background:
-
-selectedConversationId===
-
-c.conversationId
-
-?
-
-"#243760"
-
-:
-
-"transparent"
-}}
 >
 
 <h3>
 
-{
-c.title
-.slice(
-0,
-28
-)
-}
+{c.title}
 
 </h3>
 
-<div>
+<p>
 
 {
+
 new Date(
 c.createdAt
 )
+
 .toLocaleString()
+
+}
+
+</p>
+
+</div>
+
+)
+
 }
 
 </div>
 
-</div>
 
-))
-}
 
-</div>
+<div className="chat">
 
-<div
-style={{
-flex:1,
-display:"flex",
-flexDirection:"column"
-}}
->
-
-<div
-style={{
-padding:30
-}}
->
+<div className="header">
 
 <h1>
+
 Explain Like I'm 5
+
 </h1>
 
 <p>
+
 {
-user
+
+userData
 ?.signInDetails
 ?.loginId
+
 }
+
 </p>
 
 <button
 onClick={
-signOut
+logout
 }
 >
+
 Sign Out
+
 </button>
 
 </div>
 
-<div
-style={{
-flex:1,
-overflow:"auto",
-padding:30
-}}
->
+
+
+<div className="messages">
 
 {
-selectedMessages.map(
-(m,i)=>(
+
+current.map(
+
+(m,i)=>
 
 <div
 
-key={
-i
+key={i}
+
+className={
+
+m.role==="user"
+
+?
+
+"user"
+
+:
+
+"assistant"
+
 }
 
-style={{
-
-display:"flex",
-
-justifyContent:
-
-m.role===
-"user"
-
-?
-
-"flex-end"
-
-:
-
-"flex-start"
-
-}}
-
 >
 
-<div
-style={{
-maxWidth:700,
-padding:35,
-borderRadius:28,
-background:
-
-m.role===
-"user"
-
-?
-
-"#3b82f6"
-
-:
-
-"#223257",
-
-marginBottom:20
-}}
->
-
-<b>
+<div>
 
 {
-m.role===
-"user"
+
+m.role==="user"
 
 ?
 
@@ -692,33 +573,56 @@ m.role===
 :
 
 "ELI5 AI"
+
 }
 
-</b>
+</div>
+
+<p>
+
+{m.content}
+
+</p>
+
+</div>
+
+)
+
+}
+
+
+{
+
+loading
+
+&&
+
+<div
+className=
+"assistant"
+>
 
 <div>
 
-{
-m.content
+ELI5 AI
+
+</div>
+
+<p>
+
+Generating response…
+
+</p>
+
+</div>
+
 }
 
 </div>
 
-</div>
 
-</div>
 
-))
-}
-
-</div>
-
-<div
-style={{
-display:"flex",
-padding:30
-}}
->
+<div className="input">
 
 <textarea
 
@@ -732,11 +636,12 @@ e=>
 setText(
 e.target.value
 )
+
 }
 
-style={{
-flex:1
-}}
+placeholder=
+"Ask something complicated..."
+
 />
 
 <button
@@ -752,7 +657,9 @@ explain
 >
 
 {
+
 loading
+
 ?
 
 "Generating"
@@ -760,24 +667,32 @@ loading
 :
 
 "Explain"
+
 }
 
 </button>
 
 </div>
 
-</div>
+
+{
+
+status
+
+&&
+
+<p>
+
+{status}
+
+</p>
+
+}
 
 </div>
 
-);
-
-}}
-
-</Authenticator>
+</div>
 
 );
 
 }
-
-export default App;
