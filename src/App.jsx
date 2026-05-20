@@ -1,7 +1,6 @@
 import {
   useState,
-  useEffect,
-  useRef
+  useEffect
 } from "react";
 
 import {
@@ -22,23 +21,16 @@ function Dashboard({
   const [history, setHistory] =
     useState([]);
 
-  const messagesEndRef =
-    useRef(null);
+  const [selectedChat,
+    setSelectedChat] =
+    useState(null);
 
   const API_BASE =
     "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
-  // AUTO SCROLL
-  const scrollToBottom = () => {
-
-    messagesEndRef.current
-      ?.scrollIntoView({
-        behavior: "smooth"
-      });
-  };
-
   // LOAD HISTORY
-  const loadHistory = async () => {
+  const loadHistory =
+    async () => {
 
     try {
 
@@ -62,7 +54,7 @@ function Dashboard({
     }
   };
 
-  // LOAD HISTORY ON LOGIN
+  // INITIAL LOAD
   useEffect(() => {
 
     if (user?.userId) {
@@ -71,15 +63,43 @@ function Dashboard({
 
   }, [user]);
 
-  // AUTO SCROLL WHEN HISTORY CHANGES
-  useEffect(() => {
+  // GROUP USER + AI MESSAGES
+  const groupedHistory = [];
 
-    scrollToBottom();
+  for (
+    let i = 0;
+    i < history.length;
+    i += 2
+  ) {
 
-  }, [history]);
+    const userMsg =
+      history[i];
 
-  // SEND MESSAGE
-  const explain = async () => {
+    const aiMsg =
+      history[i + 1];
+
+    if (
+      userMsg?.role === "user"
+    ) {
+
+      groupedHistory.push({
+
+        question:
+          userMsg.content,
+
+        answer:
+          aiMsg?.content ||
+          "No explanation generated.",
+
+        createdAt:
+          userMsg.createdAt
+      });
+    }
+  }
+
+  // SEND REQUEST
+  const explain =
+    async () => {
 
     if (!text.trim()) {
       return;
@@ -91,23 +111,8 @@ function Dashboard({
 
     try {
 
-      // ADD USER MESSAGE IMMEDIATELY
-      const tempUserMessage = {
-
-        role: "user",
-
-        content: text,
-
-        createdAt:
-          new Date().toISOString()
-      };
-
-      setHistory((prev) => [
-        ...prev,
-        tempUserMessage
-      ]);
-
-      const currentText = text;
+      const currentText =
+        text;
 
       setText("");
 
@@ -123,7 +128,9 @@ function Dashboard({
             },
 
             body: JSON.stringify({
-              text: currentText,
+
+              text:
+                currentText,
 
               userId:
                 user.userId,
@@ -143,26 +150,14 @@ function Dashboard({
         "Request submitted."
       );
 
-      // POLL FOR NEW RESPONSE
-      let attempts = 0;
+      // WAIT FOR WORKER
+      setTimeout(async () => {
 
-      const interval =
-        setInterval(async () => {
+        await loadHistory();
 
-          attempts++;
+        setStatus("");
 
-          await loadHistory();
-
-          if (attempts >= 10) {
-
-            clearInterval(
-              interval
-            );
-
-            setStatus("");
-          }
-
-        }, 2000);
+      }, 5000);
 
     } catch (error) {
 
@@ -178,292 +173,514 @@ function Dashboard({
 
     <div
       style={{
-        minHeight: "100vh",
-        background: "#0f172a",
+        height: "100vh",
+
+        background:
+          "#0f172a",
+
         color: "white",
-        fontFamily: "Arial",
+
         display: "flex",
-        flexDirection: "column"
+
+        fontFamily:
+          "Arial, sans-serif"
       }}
     >
 
-      {/* HEADER */}
+      {/* SIDEBAR */}
 
       <div
         style={{
-          padding: 20,
-          borderBottom:
+          width: 320,
+
+          borderRight:
             "1px solid #1e293b",
 
-          display: "flex",
+          background:
+            "#111827",
 
-          justifyContent:
-            "space-between",
+          padding: 20,
 
-          alignItems: "center"
+          overflowY: "auto"
         }}
       >
 
-        <div>
-
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 36
-            }}
-          >
-            Explain Like I'm 5
-          </h1>
-
-          <p
-            style={{
-              color: "#94a3b8"
-            }}
-          >
-            {user?.signInDetails
-              ?.loginId}
-          </p>
-
-        </div>
+        <h2
+          style={{
+            marginTop: 0
+          }}
+        >
+          Conversations
+        </h2>
 
         <button
-          onClick={signOut}
+          onClick={() =>
+            setSelectedChat(null)
+          }
 
           style={{
+            width: "100%",
+
+            padding: 14,
+
             background:
-              "#ef4444",
+              "#2563eb",
 
             border: "none",
 
-            padding:
-              "10px 16px",
-
-            borderRadius: 10,
+            borderRadius: 12,
 
             color: "white",
 
+            fontWeight: "bold",
+
             cursor: "pointer",
 
-            fontWeight: "bold"
+            marginBottom: 20
           }}
         >
-          Sign Out
+          + New Chat
         </button>
 
-      </div>
-
-      {/* CHAT AREA */}
-
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: 30,
-          maxWidth: 900,
-          width: "100%",
-          margin: "0 auto"
-        }}
-      >
-
-        {history.length === 0 && (
-
-          <div
-            style={{
-              textAlign: "center",
-              marginTop: 120,
-              color: "#94a3b8"
-            }}
-          >
-
-            <h2>
-              Start a conversation
-            </h2>
-
-            <p>
-              Ask anything you want
-              explained simply.
-            </p>
-
-          </div>
-        )}
-
-        {history.map(
-          (message, index) => (
-
-            <div
-              key={index}
-
-              style={{
-                display: "flex",
-
-                justifyContent:
-                  message.role === "user"
-                    ? "flex-end"
-                    : "flex-start",
-
-                marginBottom: 20
-              }}
-            >
+        {groupedHistory
+          .slice()
+          .reverse()
+          .map(
+            (chat, index) => (
 
               <div
+                key={index}
+
+                onClick={() =>
+                  setSelectedChat(
+                    chat
+                  )
+                }
+
                 style={{
-                  maxWidth: "75%",
+                  padding: 16,
 
-                  padding: 18,
+                  borderRadius: 14,
 
-                  borderRadius: 18,
+                  marginBottom: 14,
+
+                  cursor: "pointer",
 
                   background:
-                    message.role === "user"
-                      ? "#2563eb"
-                      : "#1e293b",
+                    selectedChat === chat
+                      ? "#1e293b"
+                      : "#0f172a",
 
-                  lineHeight: 1.8,
+                  border:
+                    "1px solid #1e293b",
 
-                  whiteSpace:
-                    "pre-wrap",
-
-                  boxShadow:
-                    "0 4px 10px rgba(0,0,0,0.25)"
+                  transition:
+                    "0.2s"
                 }}
               >
 
                 <div
                   style={{
-                    fontSize: 13,
+                    fontWeight:
+                      "bold",
+
                     marginBottom: 8,
-                    opacity: 0.7,
-                    fontWeight: "bold"
+
+                    overflow:
+                      "hidden",
+
+                    textOverflow:
+                      "ellipsis",
+
+                    whiteSpace:
+                      "nowrap"
                   }}
                 >
 
-                  {message.role === "user"
-                    ? "You"
-                    : "ELI5 AI"}
+                  {chat.question}
 
-                </div>
-
-                <div>
-                  {message.content}
                 </div>
 
                 <div
                   style={{
-                    marginTop: 12,
-                    fontSize: 11,
-                    opacity: 0.6
+                    fontSize: 12,
+
+                    color:
+                      "#94a3b8"
                   }}
                 >
 
                   {new Date(
-                    message.createdAt
+                    chat.createdAt
                   ).toLocaleString()}
+
+                </div>
+
+              </div>
+            )
+          )}
+
+      </div>
+
+      {/* MAIN AREA */}
+
+      <div
+        style={{
+          flex: 1,
+
+          display: "flex",
+
+          flexDirection:
+            "column"
+        }}
+      >
+
+        {/* HEADER */}
+
+        <div
+          style={{
+            padding: 20,
+
+            borderBottom:
+              "1px solid #1e293b",
+
+            display: "flex",
+
+            justifyContent:
+              "space-between",
+
+            alignItems:
+              "center"
+          }}
+        >
+
+          <div>
+
+            <h1
+              style={{
+                margin: 0,
+
+                fontSize: 42
+              }}
+            >
+              Explain Like I'm 5
+            </h1>
+
+            <p
+              style={{
+                color:
+                  "#94a3b8"
+              }}
+            >
+              {
+                user?.signInDetails
+                  ?.loginId
+              }
+            </p>
+
+          </div>
+
+          <button
+            onClick={signOut}
+
+            style={{
+              background:
+                "#ef4444",
+
+              border: "none",
+
+              padding:
+                "12px 18px",
+
+              borderRadius: 12,
+
+              color: "white",
+
+              fontWeight:
+                "bold",
+
+              cursor: "pointer"
+            }}
+          >
+            Sign Out
+          </button>
+
+        </div>
+
+        {/* CHAT CONTENT */}
+
+        <div
+          style={{
+            flex: 1,
+
+            overflowY:
+              "auto",
+
+            padding: 40
+          }}
+        >
+
+          {!selectedChat && (
+
+            <div
+              style={{
+                textAlign:
+                  "center",
+
+                marginTop: 120,
+
+                color:
+                  "#94a3b8"
+              }}
+            >
+
+              <h2>
+                Ask anything
+              </h2>
+
+              <p>
+                Your simplified
+                explanations will
+                appear here.
+              </p>
+
+            </div>
+          )}
+
+          {selectedChat && (
+
+            <div
+              style={{
+                maxWidth: 900,
+
+                margin:
+                  "0 auto"
+              }}
+            >
+
+              {/* USER */}
+
+              <div
+                style={{
+                  display: "flex",
+
+                  justifyContent:
+                    "flex-end",
+
+                  marginBottom: 30
+                }}
+              >
+
+                <div
+                  style={{
+                    background:
+                      "#2563eb",
+
+                    padding: 22,
+
+                    borderRadius: 18,
+
+                    maxWidth: "70%",
+
+                    lineHeight: 1.7,
+
+                    boxShadow:
+                      "0 4px 10px rgba(0,0,0,0.3)"
+                  }}
+                >
+
+                  <div
+                    style={{
+                      fontSize: 12,
+
+                      opacity: 0.7,
+
+                      marginBottom: 8,
+
+                      fontWeight:
+                        "bold"
+                    }}
+                  >
+                    You
+                  </div>
+
+                  {
+                    selectedChat.question
+                  }
+
+                </div>
+
+              </div>
+
+              {/* AI */}
+
+              <div
+                style={{
+                  display: "flex",
+
+                  justifyContent:
+                    "flex-start"
+                }}
+              >
+
+                <div
+                  style={{
+                    background:
+                      "#1e293b",
+
+                    padding: 24,
+
+                    borderRadius: 18,
+
+                    maxWidth: "75%",
+
+                    lineHeight: 1.9,
+
+                    whiteSpace:
+                      "pre-wrap",
+
+                    boxShadow:
+                      "0 4px 10px rgba(0,0,0,0.3)"
+                  }}
+                >
+
+                  <div
+                    style={{
+                      fontSize: 12,
+
+                      opacity: 0.7,
+
+                      marginBottom: 8,
+
+                      fontWeight:
+                        "bold"
+                    }}
+                  >
+                    ELI5 AI
+                  </div>
+
+                  {
+                    selectedChat.answer
+                  }
 
                 </div>
 
               </div>
 
             </div>
-          )
-        )}
-
-        <div ref={messagesEndRef} />
-
-      </div>
-
-      {/* INPUT */}
-
-      <div
-        style={{
-          padding: 20,
-          borderTop:
-            "1px solid #1e293b",
-          background: "#111827"
-        }}
-      >
-
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            maxWidth: 900,
-            margin: "0 auto"
-          }}
-        >
-
-          <textarea
-            rows="2"
-
-            value={text}
-
-            onChange={(e) =>
-              setText(e.target.value)
-            }
-
-            placeholder="Ask something..."
-
-            style={{
-              flex: 1,
-
-              padding: 16,
-
-              borderRadius: 14,
-
-              border:
-                "1px solid #374151",
-
-              background:
-                "#0f172a",
-
-              color: "white",
-
-              fontSize: 16,
-
-              resize: "none"
-            }}
-          />
-
-          <button
-            onClick={explain}
-
-            style={{
-              background:
-                "#3b82f6",
-
-              border: "none",
-
-              padding:
-                "0 24px",
-
-              borderRadius: 14,
-
-              color: "white",
-
-              fontWeight: "bold",
-
-              cursor: "pointer",
-
-              minWidth: 100
-            }}
-          >
-            Send
-          </button>
+          )}
 
         </div>
 
-        {status && (
+        {/* INPUT AREA */}
+
+        <div
+          style={{
+            padding: 24,
+
+            borderTop:
+              "1px solid #1e293b",
+
+            background:
+              "#111827"
+          }}
+        >
 
           <div
             style={{
-              maxWidth: 900,
-              margin:
-                "10px auto 0",
-              color: "#94a3b8"
+              display: "flex",
+
+              gap: 12,
+
+              maxWidth: 1000,
+
+              margin: "0 auto"
             }}
           >
-            {status}
+
+            <textarea
+              rows="2"
+
+              value={text}
+
+              onChange={(e) =>
+                setText(
+                  e.target.value
+                )
+              }
+
+              placeholder="Ask something complicated..."
+
+              style={{
+                flex: 1,
+
+                padding: 18,
+
+                borderRadius: 16,
+
+                border:
+                  "1px solid #374151",
+
+                background:
+                  "#0f172a",
+
+                color: "white",
+
+                fontSize: 16,
+
+                resize: "none"
+              }}
+            />
+
+            <button
+              onClick={explain}
+
+              style={{
+                background:
+                  "#3b82f6",
+
+                border: "none",
+
+                padding:
+                  "0 28px",
+
+                borderRadius: 16,
+
+                color: "white",
+
+                fontWeight:
+                  "bold",
+
+                cursor: "pointer",
+
+                fontSize: 16
+              }}
+            >
+              Explain
+            </button>
+
           </div>
-        )}
+
+          {status && (
+
+            <div
+              style={{
+                maxWidth: 1000,
+
+                margin:
+                  "12px auto 0",
+
+                color:
+                  "#94a3b8"
+              }}
+            >
+
+              {status}
+
+            </div>
+          )}
+
+        </div>
 
       </div>
 
