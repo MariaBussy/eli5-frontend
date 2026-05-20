@@ -1,9 +1,8 @@
 import "./App.css";
 import { useEffect, useState } from "react";
-import crypto from "crypto-js";
 
 const API_BASE =
-process.env.REACT_APP_API_URL;
+import.meta.env.VITE_API_URL;
 
 export default function App() {
 
@@ -27,7 +26,7 @@ const [status,setStatus]=
 useState("");
 
 
-// LOAD USER
+// USER
 
 useEffect(()=>{
 
@@ -49,16 +48,21 @@ stored
 },[]);
 
 
-// LOAD HISTORY
+// HISTORY
 
 useEffect(()=>{
 
-if(!userData)
-return;
+if(
+userData
+){
 
 loadHistory();
 
-},[userData]);
+}
+
+},[
+userData
+]);
 
 
 const loadHistory=
@@ -76,13 +80,17 @@ await res.json();
 
 rows.sort(
 (a,b)=>
+
 new Date(
 a.createdAt
 )
+
 -
+
 new Date(
 b.createdAt
 )
+
 );
 
 setHistory(
@@ -101,25 +109,36 @@ e
 };
 
 
-// CONVERSATIONS
+
+// GROUP
 
 const conversations=
 Object.values(
 
 history.reduce(
+
 (acc,msg)=>{
 
-const id=
-msg.conversationId;
+if(
+!msg.conversationId
+)
+return acc;
 
 if(
-!acc[id]
+!acc[
+msg.conversationId
+]
 ){
 
-acc[id]={
-id,
+acc[
+msg.conversationId
+]={
+id:
+msg.conversationId,
+
 title:
 msg.content,
+
 createdAt:
 msg.createdAt
 };
@@ -129,43 +148,52 @@ msg.createdAt
 return acc;
 
 },
+
 {}
+
 )
 
 ).sort(
+
 (a,b)=>
+
 new Date(
 b.createdAt
 )
+
 -
+
 new Date(
 a.createdAt
 )
+
 );
 
 
 // CURRENT CHAT
 
 const current=
-history.filter(
-
-m=>
-
 selectedConversationId
 
 ?
 
+history.filter(
+
+m=>
+
 m.conversationId===
+
 selectedConversationId
+
+)
 
 :
 
-false
-
-);
+[];
 
 
-// SEND MESSAGE
+
+// SEND
 
 const explain=
 async()=>{
@@ -194,17 +222,14 @@ let conversationId=
 selectedConversationId;
 
 
-// create only if none selected
+// create only once
 
 if(
 !conversationId
 ){
 
 conversationId=
-crypto
-.lib.WordArray
-.random(16)
-.toString();
+crypto.randomUUID();
 
 setSelectedConversationId(
 conversationId
@@ -236,8 +261,7 @@ userId:
 userData.userId,
 
 email:
-userData.signInDetails
-.loginId,
+userData.signInDetails.loginId,
 
 conversationId
 
@@ -248,7 +272,7 @@ conversationId
 );
 
 
-// poll
+// POLL
 
 let attempts=0;
 
@@ -269,58 +293,55 @@ await res.json();
 
 rows.sort(
 (a,b)=>
+
 new Date(
 a.createdAt
 )
+
 -
+
 new Date(
 b.createdAt
 )
+
 );
 
 setHistory(
-rows);
+rows
+);
 
-
-// assistant exists?
-
-const assistant=
+const convo=
 rows.filter(
 
 m=>
 
 m.conversationId===
+
 conversationId
-
-&&
-
-m.role===
-"assistant"
 
 );
 
-const user=
-rows.filter(
+const users=
+convo.filter(
+x=>
 
-m=>
+x.role==="user"
+);
 
-m.conversationId===
-conversationId
+const assistants=
+convo.filter(
+x=>
 
-&&
-
-m.role===
-"user"
-
+x.role==="assistant"
 );
 
 
-// stop when pairs complete
+// response received
 
 if(
-assistant.length
+assistants.length
 >=
-user.length
+users.length
 ){
 
 clearInterval(
@@ -332,7 +353,8 @@ false
 );
 
 setStatus(
-"");
+""
+);
 
 }
 
@@ -340,8 +362,7 @@ setStatus(
 // timeout
 
 if(
-attempts>
-30
+attempts>30
 ){
 
 clearInterval(
@@ -359,14 +380,16 @@ setStatus(
 }
 
 },
+
 2000
+
 );
 
 }
-catch(e){
+catch(err){
 
 console.log(
-e
+err
 );
 
 setLoading(
@@ -391,14 +414,18 @@ setSelectedConversationId(
 null
 );
 
-setStatus("");
+setText(
+""
+);
 
-setText("");
+setStatus(
+""
+);
 
 };
 
 
-// SIGN OUT
+// LOGOUT
 
 const logout=
 ()=>{
@@ -417,7 +444,9 @@ return(
 <div className="sidebar">
 
 <h2>
+
 Conversations
+
 </h2>
 
 <button
@@ -444,7 +473,9 @@ c.id
 }
 
 className={
+
 selectedConversationId===
+
 c.id
 
 ?
@@ -454,6 +485,7 @@ c.id
 :
 
 "conversation"
+
 }
 
 onClick={()=>
@@ -538,11 +570,11 @@ Sign Out
 
 current.map(
 
-(m,i)=>
+(m,index)=>
 
 <div
 
-key={i}
+key={index}
 
 className={
 
@@ -580,7 +612,11 @@ m.role==="user"
 
 <p>
 
-{m.content}
+{
+
+m.content
+
+}
 
 </p>
 
@@ -610,7 +646,7 @@ ELI5 AI
 
 <p>
 
-Generating response…
+Generating response...
 
 </p>
 
@@ -643,6 +679,7 @@ placeholder=
 "Ask something complicated..."
 
 />
+
 
 <button
 
