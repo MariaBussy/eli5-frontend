@@ -18,13 +18,58 @@ function App() {
   const [history, setHistory] =
     useState([]);
 
-  const [selectedQuestion,
-    setSelectedQuestion] =
+  const [selectedId,
+    setSelectedId] =
       useState(null);
 
   const [userData,
     setUserData] =
       useState(null);
+
+  // BUILD CONVERSATIONS
+  const buildConversations =
+    (items) => {
+
+      const conversations = [];
+
+      for (
+        let i = 0;
+        i < items.length;
+        i++
+      ) {
+
+        const current =
+          items[i];
+
+        if (
+          current.role === "user"
+        ) {
+
+          const assistant =
+            items[i + 1];
+
+          conversations.push({
+
+            id:
+              current.createdAt,
+
+            question:
+              current.content,
+
+            answer:
+              assistant?.role ===
+              "assistant"
+                ? assistant.content
+                : "Generating response...",
+
+            createdAt:
+              current.createdAt
+          });
+        }
+      }
+
+      return conversations;
+    };
 
   // LOAD HISTORY
   const loadHistory =
@@ -45,7 +90,24 @@ function App() {
             ? data
             : [];
 
-        setHistory(safeData);
+        const conversations =
+          buildConversations(
+            safeData
+          );
+
+        setHistory(
+          conversations
+        );
+
+        if (
+          conversations.length > 0 &&
+          !selectedId
+        ) {
+
+          setSelectedId(
+            conversations[0].id
+          );
+        }
 
       } catch (error) {
 
@@ -63,81 +125,21 @@ function App() {
 
   }, [userData]);
 
-  // BUILD CONVERSATIONS
-  const conversations = [];
-
-  for (
-    let i = 0;
-    i < history.length;
-    i++
-  ) {
-
-    const current =
-      history[i];
-
-    if (
-      current.role === "user"
-    ) {
-
-      let answer =
-        "Generating response...";
-
-      for (
-        let j = i + 1;
-        j < history.length;
-        j++
-      ) {
-
-        if (
-          history[j].role ===
-          "assistant"
-        ) {
-
-          answer =
-            history[j].content;
-
-          break;
-        }
-      }
-
-      conversations.push({
-
-        question:
-          current.content,
-
-        answer,
-
-        createdAt:
-          current.createdAt
-      });
-    }
-  }
-
-  // AUTO SELECT FIRST CHAT
-  useEffect(() => {
-
-    if (
-      !selectedQuestion &&
-      conversations.length > 0
-    ) {
-
-      setSelectedQuestion(
-        conversations[0].question
-      );
-    }
-
-  }, [
-    conversations,
-    selectedQuestion
-  ]);
-
   // SELECTED CHAT
   const selectedChat =
-    conversations.find(
-      c =>
-        c.question ===
-        selectedQuestion
+    history.find(
+      c => c.id === selectedId
     );
+
+  // NEW CHAT
+  const newChat = () => {
+
+    setSelectedId(null);
+
+    setText("");
+
+    setStatus("");
+  };
 
   // EXPLAIN
   const explain =
@@ -147,48 +149,40 @@ function App() {
 
       const currentText = text;
 
+      const optimisticId =
+        new Date().toISOString();
+
+      const optimisticConversation = {
+
+        id: optimisticId,
+
+        question: currentText,
+
+        answer:
+          "Generating response...",
+
+        createdAt:
+          optimisticId
+      };
+
+      setHistory(prev => [
+
+        optimisticConversation,
+
+        ...prev
+      ]);
+
+      setSelectedId(
+        optimisticId
+      );
+
+      setText("");
+
       setStatus(
         "Request queued successfully."
       );
 
-      setSelectedQuestion(
-        currentText
-      );
-
       try {
-
-        // OPTIMISTIC UI
-        const optimisticUserMessage = {
-
-          role: "user",
-
-          content: currentText,
-
-          createdAt:
-            new Date().toISOString()
-        };
-
-        const optimisticAssistant = {
-
-          role: "assistant",
-
-          content:
-            "Generating response...",
-
-          createdAt:
-            new Date().toISOString()
-        };
-
-        setHistory(prev => [
-
-          optimisticUserMessage,
-
-          optimisticAssistant,
-
-          ...prev
-        ]);
-
-        setText("");
 
         await fetch(
           `${API_BASE}/explain`,
@@ -237,79 +231,37 @@ function App() {
                   ? data
                   : [];
 
-              setHistory(safeData);
+              const conversations =
+                buildConversations(
+                  safeData
+                );
 
-              const grouped = [];
+              setHistory(
+                conversations
+              );
 
-              for (
-                let i = 0;
-                i < safeData.length;
-                i++
-              ) {
-
-                const current =
-                  safeData[i];
-
-                if (
-                  current.role === "user"
-                ) {
-
-                  let answer =
-                    "Generating response...";
-
-                  for (
-                    let j = i + 1;
-                    j < safeData.length;
-                    j++
-                  ) {
-
-                    if (
-                      safeData[j].role ===
-                      "assistant"
-                    ) {
-
-                      answer =
-                        safeData[j].content;
-
-                      break;
-                    }
-                  }
-
-                  grouped.push({
-
-                    question:
-                      current.content,
-
-                    answer,
-
-                    createdAt:
-                      current.createdAt
-                  });
-                }
-              }
-
-              const updatedChat =
-                grouped.find(
+              const updated =
+                conversations.find(
                   c =>
                     c.question ===
                     currentText
                 );
 
               if (
-                updatedChat &&
-                updatedChat.answer !==
+                updated &&
+                updated.answer !==
                   "Generating response..."
               ) {
 
-                setSelectedQuestion(
-                  currentText
+                setSelectedId(
+                  updated.id
                 );
+
+                setStatus("");
 
                 clearInterval(
                   interval
                 );
-
-                setStatus("");
               }
 
             } catch (error) {
@@ -369,7 +321,7 @@ function App() {
               color: "white",
 
               fontFamily:
-                "Arial, sans-serif"
+                "Arial"
             }}
           >
 
@@ -379,22 +331,21 @@ function App() {
 
                 width: 320,
 
+                background:
+                  "#031133",
+
                 borderRight:
                   "1px solid rgba(255,255,255,0.08)",
 
                 padding: 20,
 
-                overflowY: "auto",
-
-                background:
-                  "#031133"
+                overflowY: "auto"
               }}
             >
 
               <h2
                 style={{
-                  textAlign: "center",
-                  marginBottom: 20
+                  textAlign: "center"
                 }}
               >
                 Conversations
@@ -402,12 +353,7 @@ function App() {
 
               <button
 
-                onClick={() => {
-
-                  setSelectedQuestion(
-                    null
-                  );
-                }}
+                onClick={newChat}
 
                 style={{
 
@@ -415,7 +361,7 @@ function App() {
 
                   padding: 18,
 
-                  borderRadius: 16,
+                  borderRadius: 18,
 
                   border: "none",
 
@@ -424,9 +370,12 @@ function App() {
 
                   color: "white",
 
-                  fontWeight: "bold",
+                  fontWeight:
+                    "bold",
 
                   fontSize: 20,
+
+                  marginTop: 20,
 
                   marginBottom: 30,
 
@@ -436,7 +385,7 @@ function App() {
                 + New Chat
               </button>
 
-              {conversations.map(
+              {history.map(
                 (chat, index) => (
 
                   <div
@@ -444,8 +393,8 @@ function App() {
                     key={index}
 
                     onClick={() =>
-                      setSelectedQuestion(
-                        chat.question
+                      setSelectedId(
+                        chat.id
                       )
                     }
 
@@ -457,33 +406,33 @@ function App() {
 
                       marginBottom: 18,
 
+                      cursor: "pointer",
+
                       background:
-                        selectedQuestion ===
-                        chat.question
+                        selectedId ===
+                        chat.id
                           ? "#1c2b4a"
                           : "transparent",
 
                       border:
-                        "1px solid rgba(255,255,255,0.08)",
-
-                      cursor: "pointer"
+                        "1px solid rgba(255,255,255,0.08)"
                     }}
                   >
 
                     <div
                       style={{
 
-                        fontSize: 16,
-
                         fontWeight:
                           "bold",
 
-                        marginBottom: 10
+                        marginBottom: 10,
+
+                        fontSize: 17
                       }}
                     >
                       {
-                        chat.question.length >
-                        40
+                        chat.question
+                          .length > 40
                           ? chat.question.slice(
                               0,
                               40
@@ -530,16 +479,16 @@ function App() {
 
                   padding: 30,
 
-                  borderBottom:
-                    "1px solid rgba(255,255,255,0.08)",
-
                   display: "flex",
 
                   justifyContent:
                     "space-between",
 
                   alignItems:
-                    "center"
+                    "center",
+
+                  borderBottom:
+                    "1px solid rgba(255,255,255,0.08)"
                 }}
               >
 
@@ -547,8 +496,8 @@ function App() {
 
                   <h1
                     style={{
-                      fontSize: 60,
-                      margin: 0
+                      margin: 0,
+                      fontSize: 72
                     }}
                   >
                     Explain Like I'm 5
@@ -582,14 +531,14 @@ function App() {
                     color: "white",
 
                     padding:
-                      "18px 30px",
+                      "18px 28px",
 
-                    borderRadius: 18,
+                    borderRadius: 20,
+
+                    fontSize: 18,
 
                     fontWeight:
                       "bold",
-
-                    fontSize: 18,
 
                     cursor: "pointer"
                   }}
@@ -599,7 +548,7 @@ function App() {
 
               </div>
 
-              {/* CHAT */}
+              {/* CHAT AREA */}
               <div
                 style={{
 
@@ -616,12 +565,12 @@ function App() {
                   <div
                     style={{
 
-                      opacity: 0.6,
-
                       textAlign:
                         "center",
 
-                      marginTop: 180
+                      marginTop: 200,
+
+                      opacity: 0.6
                     }}
                   >
 
@@ -648,7 +597,7 @@ function App() {
                         justifyContent:
                           "flex-end",
 
-                        marginBottom: 30
+                        marginBottom: 40
                       }}
                     >
 
@@ -660,7 +609,7 @@ function App() {
 
                           padding: 24,
 
-                          borderRadius: 28,
+                          borderRadius: 30,
 
                           maxWidth: "45%"
                         }}
@@ -669,11 +618,11 @@ function App() {
                         <div
                           style={{
 
-                            fontSize: 14,
+                            fontSize: 13,
 
                             opacity: 0.7,
 
-                            marginBottom: 12,
+                            marginBottom: 10,
 
                             fontWeight:
                               "bold"
@@ -684,8 +633,8 @@ function App() {
 
                         <div
                           style={{
-                            fontSize: 20,
-                            lineHeight: 1.6
+                            fontSize: 22,
+                            lineHeight: 1.7
                           }}
                         >
                           {
@@ -714,15 +663,15 @@ function App() {
                           background:
                             "#1c2b4a",
 
-                          padding: 32,
+                          padding: 34,
 
-                          borderRadius: 28,
+                          borderRadius: 30,
 
                           maxWidth: "75%",
 
-                          lineHeight: 1.9,
+                          fontSize: 22,
 
-                          fontSize: 21,
+                          lineHeight: 1.9,
 
                           whiteSpace:
                             "pre-wrap"
@@ -732,7 +681,7 @@ function App() {
                         <div
                           style={{
 
-                            fontSize: 14,
+                            fontSize: 13,
 
                             opacity: 0.7,
 
@@ -794,9 +743,9 @@ function App() {
                       "transparent",
 
                     border:
-                      "1px solid rgba(255,255,255,0.15)",
+                      "1px solid rgba(255,255,255,0.12)",
 
-                    borderRadius: 20,
+                    borderRadius: 22,
 
                     color: "white",
 
@@ -826,12 +775,12 @@ function App() {
                     padding:
                       "0 40px",
 
-                    borderRadius: 20,
+                    borderRadius: 22,
 
                     fontWeight:
                       "bold",
 
-                    fontSize: 22,
+                    fontSize: 24,
 
                     cursor: "pointer"
                   }}
@@ -849,7 +798,7 @@ function App() {
                     textAlign:
                       "center",
 
-                    paddingBottom: 20,
+                    paddingBottom: 18,
 
                     opacity: 0.7
                   }}
