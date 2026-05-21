@@ -2,6 +2,7 @@ body{
 margin:0;
 background:#020b3d;
 color:white;
+font-family:sans-serif;
 }
 
 .app{
@@ -10,7 +11,7 @@ height:100vh;
 }
 
 .sidebar{
-width:300px;
+width:320px;
 padding:30px;
 overflow:auto;
 border-right:1px solid #24345f;
@@ -22,14 +23,34 @@ padding:40px;
 overflow:auto;
 }
 
-.chat{
+.conversation{
+
+padding:20px;
+
+background:#24345f;
+
+margin-top:20px;
+
+border-radius:20px;
+
+cursor:pointer;
+
+}
+
+.messages{
+
 display:flex;
+
 flex-direction:column;
+
 gap:20px;
+
 margin-top:30px;
+
 }
 
 .user{
+
 align-self:flex-end;
 
 background:#4d8dff;
@@ -38,10 +59,13 @@ padding:20px;
 
 border-radius:20px;
 
-max-width:700px;
+max-width:600px;
+
 }
 
 .assistant{
+
+align-self:flex-start;
 
 background:#24345f;
 
@@ -50,19 +74,7 @@ padding:20px;
 border-radius:20px;
 
 max-width:900px;
-}
 
-.conversation{
-
-padding:20px;
-
-margin-top:15px;
-
-background:#24345f;
-
-cursor:pointer;
-
-border-radius:15px;
 }
 
 .input{
@@ -72,6 +84,7 @@ display:flex;
 gap:10px;
 
 margin-top:30px;
+
 }
 
 textarea{
@@ -79,9 +92,12 @@ textarea{
 width:700px;
 
 height:100px;
+
 }
 
-.center{
+.loading{
+
+height:100vh;
 
 display:flex;
 
@@ -89,5 +105,4 @@ justify-content:center;
 
 align-items:center;
 
-height:100vh;
 }

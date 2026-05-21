@@ -24,19 +24,20 @@ const [messages,setMessages]=useState([]);
 
 const [conversations,setConversations]=useState([]);
 
-const [selected,setSelected]=useState(null);
+const [conversationId,setConversationId]=
+useState(null);
 
 
 
 useEffect(()=>{
 
-boot();
+initialize();
 
 },[]);
 
 
 
-async function boot(){
+async function initialize(){
 
 try{
 
@@ -53,7 +54,6 @@ current.userId
 catch(err){
 
 console.log(
-"auth",
 err
 );
 
@@ -68,11 +68,7 @@ setLoading(false);
 
 
 
-async function loadConversations(
-userId
-){
-
-try{
+async function authHeaders(){
 
 const session =
 await fetchAuthSession();
@@ -81,6 +77,37 @@ const token =
 session.tokens?.idToken
 ?.toString();
 
+if(!token){
+
+throw new Error(
+"NOT_AUTHENTICATED"
+);
+
+}
+
+return{
+
+Authorization:
+token,
+
+"Content-Type":
+"application/json"
+
+};
+
+}
+
+
+
+async function loadConversations(
+userId
+){
+
+try{
+
+const headers =
+await authHeaders();
+
 const res =
 await fetch(
 
@@ -88,12 +115,7 @@ await fetch(
 
 {
 
-headers:{
-
-Authorization:
-token
-
-}
+headers
 
 }
 
@@ -105,6 +127,8 @@ await res.json();
 if(
 !Array.isArray(rows)
 ){
+
+setConversations([]);
 
 return;
 
@@ -184,14 +208,12 @@ id
 
 try{
 
-setSelected(id);
+setConversationId(
+id
+);
 
-const session =
-await fetchAuthSession();
-
-const token =
-session.tokens?.idToken
-?.toString();
+const headers =
+await authHeaders();
 
 const res =
 await fetch(
@@ -200,12 +222,7 @@ await fetch(
 
 {
 
-headers:{
-
-Authorization:
-token
-
-}
+headers
 
 }
 
@@ -261,18 +278,12 @@ return;
 
 }
 
-setSending(
-true
-);
-
 try{
 
-const session =
-await fetchAuthSession();
+setSending(true);
 
-const token =
-session.tokens?.idToken
-?.toString();
+const headers =
+await authHeaders();
 
 const res =
 await fetch(
@@ -284,15 +295,7 @@ await fetch(
 method:
 "POST",
 
-headers:{
-
-Authorization:
-token,
-
-"Content-Type":
-"application/json"
-
-},
+headers,
 
 body:
 JSON.stringify({
@@ -306,8 +309,7 @@ email:
 user.signInDetails
 ?.loginId,
 
-conversationId:
-selected
+conversationId
 
 })
 
@@ -318,20 +320,44 @@ selected
 const data =
 await res.json();
 
+if(
+!res.ok
+){
+
+throw new Error(
+data.error
+);
+
+}
+
 setText("");
 
 const id =
 data.conversationId
 ||
-selected;
+conversationId;
 
 await loadConversations(
 user.userId
 );
 
+if(id){
+
+await new Promise(
+r=>
+
+setTimeout(
+r,
+2000
+)
+
+);
+
 await openConversation(
 id
 );
+
+}
 
 }
 catch(err){
@@ -340,12 +366,14 @@ console.log(
 err
 );
 
+alert(
+err.message
+);
+
 }
 finally{
 
-setSending(
-false
-);
+setSending(false);
 
 }
 
@@ -353,15 +381,15 @@ false
 
 
 
-async function newChat(){
+function newChat(){
 
-setSelected(
+setConversationId(
 null
 );
 
-setMessages(
-[]
-);
+setMessages([]);
+
+setText("");
 
 }
 
@@ -394,7 +422,7 @@ loading
 
 return(
 
-<div className="center">
+<div className="loading">
 
 Loading...
 
@@ -436,7 +464,9 @@ conversations.map(
 
 <div
 
-key={c.id}
+key={
+c.id
+}
 
 className="conversation"
 
@@ -498,19 +528,17 @@ Sign Out
 
 </button>
 
-<div
-className="chat"
->
+<div className="messages">
 
 {
 
 messages.map(
 
-(m,i)=>(
+(m,index)=>(
 
 <div
 
-key={i}
+key={index}
 
 className={
 
@@ -520,7 +548,7 @@ m.role
 
 >
 
-<strong>
+<div>
 
 {
 
@@ -536,7 +564,7 @@ m.role==="user"
 
 }
 
-</strong>
+</div>
 
 <div>
 
@@ -558,9 +586,7 @@ m.content
 
 </div>
 
-<div
-className="input"
->
+<div className="input">
 
 <textarea
 
@@ -581,16 +607,16 @@ placeholder=
 
 "Ask something complicated..."
 
-/>
+></textarea>
 
 <button
 
-onClick={
-send
-}
-
 disabled={
 sending
+}
+
+onClick={
+send
 }
 
 >
@@ -601,7 +627,7 @@ sending
 
 ?
 
-"Generating"
+"Generating..."
 
 :
 
