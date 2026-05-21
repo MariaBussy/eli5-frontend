@@ -1,104 +1,28 @@
 import "./App.css";
 import { useEffect, useState } from "react";
-import {
-fetchAuthSession
-} from "aws-amplify/auth";
+import { fetchAuthSession, signOut } from "aws-amplify/auth";
 
 const API =
 import.meta.env.VITE_API_URL;
 
-export default function App(){
+export default function App() {
 
-const [
-user,
-setUser
-]=useState(null);
+const [user,setUser]=useState(null);
 
-const [
-history,
-setHistory
-]=useState([]);
+const [text,setText]=useState("");
 
-const [
-selectedConversation,
-setSelectedConversation
-]=useState(null);
+const [history,setHistory]=useState([]);
 
-const [
-text,
-setText
-]=useState("");
+const [selectedConversation,
+setSelectedConversation]=useState(null);
 
-const [
-loading,
-setLoading
-]=useState(false);
-
-const [
-status,
-setStatus
-]=useState("");
+const [loading,setLoading]=useState(false);
 
 
 
-// AUTH
+// ---------- USER ----------
 
 useEffect(()=>{
-
-loadUser();
-
-},[]);
-
-
-async function loadUser(){
-
-try{
-
-const session=
-await fetchAuthSession();
-
-const payload=
-session.tokens
-?.idToken
-?.payload;
-
-if(payload){
-
-const loaded={
-
-userId:
-payload.sub,
-
-email:
-payload.email
-
-};
-
-setUser(
-loaded
-);
-
-localStorage.setItem(
-"user",
-JSON.stringify(
-loaded
-)
-);
-
-return;
-
-}
-
-}
-catch(err){
-
-console.log(
-"Amplify not ready"
-);
-
-}
-
-
 
 const cached=
 localStorage.getItem(
@@ -115,16 +39,93 @@ cached
 
 }
 
+loadAuth();
+
+},[]);
+
+
+
+async function loadAuth(){
+
+try{
+
+const timeout=
+new Promise((_,reject)=>
+
+setTimeout(
+
+()=>reject(),
+
+3000
+
+)
+
+);
+
+const session=
+
+await Promise.race([
+
+fetchAuthSession(),
+
+timeout
+
+]);
+
+const payload=
+
+session
+?.tokens
+?.idToken
+?.payload;
+
+if(payload){
+
+const u={
+
+userId:
+payload.sub,
+
+email:
+payload.email
+
+};
+
+setUser(
+u
+);
+
+localStorage.setItem(
+
+"user",
+
+JSON.stringify(
+u
+)
+
+);
+
+}
+
+}
+catch{
+
+console.log(
+"Using cached user"
+);
+
+}
+
 }
 
 
 
-// HISTORY
+// ---------- LOAD ----------
 
 useEffect(()=>{
 
 if(
-user
+user?.userId
 ){
 
 loadHistory();
@@ -136,11 +137,13 @@ user
 ]);
 
 
+
 async function loadHistory(){
 
 try{
 
 const res=
+
 await fetch(
 
 `${API}/history?userId=${user.userId}`
@@ -148,10 +151,14 @@ await fetch(
 );
 
 const rows=
+
 await res.json();
 
 const ordered=
-rows.sort(
+
+(rows||[])
+
+.sort(
 
 (a,b)=>
 
@@ -172,10 +179,10 @@ ordered
 );
 
 }
-catch(err){
+catch(e){
 
 console.log(
-err
+e
 );
 
 }
@@ -184,7 +191,7 @@ err
 
 
 
-// SEND
+// ---------- SEND ----------
 
 async function explain(){
 
@@ -201,10 +208,6 @@ setLoading(
 true
 );
 
-setStatus(
-"Generating..."
-);
-
 const question=
 text;
 
@@ -213,9 +216,7 @@ setText("");
 let conversationId=
 selectedConversation;
 
-if(
-!conversationId
-){
+if(!conversationId){
 
 conversationId=
 crypto.randomUUID();
@@ -238,8 +239,10 @@ method:
 "POST",
 
 headers:{
+
 "Content-Type":
 "application/json"
+
 },
 
 body:
@@ -262,38 +265,31 @@ conversationId
 
 );
 
-poll(
+waitForAnswer(
 conversationId
 );
 
 }
-catch(err){
-
-console.log(
-err
-);
+catch{
 
 setLoading(
 false
 );
 
-setStatus(
-"Failed"
-);
-
 }
 
 }
 
 
 
-function poll(
+function waitForAnswer(
 conversationId
 ){
 
 let attempts=0;
 
 const timer=
+
 setInterval(
 
 async()=>{
@@ -303,6 +299,7 @@ attempts++;
 await loadHistory();
 
 const res=
+
 await fetch(
 
 `${API}/history?userId=${user.userId}`
@@ -313,23 +310,27 @@ const rows=
 await res.json();
 
 const convo=
+
 rows.filter(
 
-m=>
+x=>
 
-m.conversationId===
+x.conversationId===
+
 conversationId
 
 );
 
 const users=
+
 convo.filter(
 x=>
 
 x.role==="user"
 );
 
-const assistants=
+const answers=
+
 convo.filter(
 x=>
 
@@ -338,7 +339,7 @@ x.role==="assistant"
 
 if(
 
-assistants.length
+answers.length
 
 >=
 
@@ -354,14 +355,12 @@ setLoading(
 false
 );
 
-setStatus("");
-
 await loadHistory();
 
 }
 
 if(
-attempts>30
+attempts>20
 ){
 
 clearInterval(
@@ -370,10 +369,6 @@ timer
 
 setLoading(
 false
-);
-
-setStatus(
-"Timed out"
 );
 
 }
@@ -388,7 +383,26 @@ setStatus(
 
 
 
-// CONVERSATIONS
+// ---------- SIGN OUT ----------
+
+async function logout(){
+
+try{
+
+await signOut();
+
+}
+catch{}
+
+localStorage.clear();
+
+location.reload();
+
+}
+
+
+
+// ---------- UI ----------
 
 const conversations=
 
@@ -396,31 +410,31 @@ Object.values(
 
 history.reduce(
 
-(acc,m)=>{
+(acc,item)=>{
 
 if(
-!m.conversationId
+!item.conversationId
 )
 return acc;
 
 if(
 !acc[
-m.conversationId
+item.conversationId
 ]
 ){
 
 acc[
-m.conversationId
+item.conversationId
 ]={
 
 id:
-m.conversationId,
+item.conversationId,
 
 title:
-m.content,
+item.content,
 
 createdAt:
-m.createdAt
+item.createdAt
 
 };
 
@@ -452,7 +466,7 @@ a.createdAt
 
 
 
-const current=
+const messages=
 
 history.filter(
 
@@ -478,23 +492,21 @@ Conversations
 
 </h2>
 
-
 <button
 
-onClick={()=>{
+onClick={()=>
 
 setSelectedConversation(
 null
-);
+)
 
-}}
+}
 
 >
 
 + New Chat
 
 </button>
-
 
 {
 
@@ -504,9 +516,7 @@ c=>
 
 <div
 
-key={
-c.id
-}
+key={c.id}
 
 className="conversation"
 
@@ -566,22 +576,17 @@ user?.email
 
 ||
 
-"Loading..."
+"Anonymous"
 
 }
 
 </p>
 
-
 <button
 
-onClick={()=>{
-
-localStorage.clear();
-
-location.reload();
-
-}}
+onClick={
+logout
+}
 
 >
 
@@ -595,7 +600,7 @@ Sign Out
 
 {
 
-current.map(
+messages.map(
 
 (m,i)=>
 
@@ -637,16 +642,12 @@ m.role==="user"
 
 }
 
-
 {
 
-loading
-
-&&
+loading &&
 
 <div
-className=
-"assistant"
+className="assistant"
 >
 
 Generating response...
@@ -681,12 +682,12 @@ placeholder=
 />
 
 
+
 <button
 
 disabled={
 
 loading
-
 ||
 
 !user
@@ -714,13 +715,6 @@ loading
 }
 
 </button>
-
-
-<p>
-
-{status}
-
-</p>
 
 </div>
 
