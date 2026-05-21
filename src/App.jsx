@@ -23,9 +23,31 @@ const [currentUser,
 setCurrentUser]=
 useState(null);
 
+
+// ---------- RESET ----------
+
+function resetState(){
+
+setText("");
+
+setLoading(false);
+
+setHistory([]);
+
+setSelectedChat(null);
+
+setCurrentUser(null);
+
+}
+
+
+
+// ---------- LOAD ----------
+
 async function loadHistory(user){
 
-if(!user) return;
+if(!user)
+return;
 
 try{
 
@@ -37,13 +59,15 @@ user.username
 ||
 user.attributes?.sub;
 
-const response =
+const res =
 await fetch(
+
 `${API}/history?userId=${encodeURIComponent(userId)}`
+
 );
 
 const data =
-await response.json();
+await res.json();
 
 if(
 !Array.isArray(data)
@@ -60,6 +84,7 @@ const grouped={};
 data.forEach(item=>{
 
 const id =
+
 item.conversationId
 ||
 "single";
@@ -109,6 +134,7 @@ Object
 .values(grouped)
 
 .sort(
+
 (a,b)=>
 
 new Date(
@@ -127,29 +153,11 @@ setHistory(
 conversations
 );
 
-setSelectedChat(prev=>{
-
-if(
-prev
-){
-
-const updated =
-
-conversations.find(
-x=>
-x.id===prev.id
-);
-
-if(updated)
-return updated;
-
-}
-
-return conversations[0]
+setSelectedChat(
+conversations[0]
 ||
-null;
-
-});
+null
+);
 
 }
 catch(err){
@@ -160,6 +168,10 @@ console.log(err);
 
 }
 
+
+
+// ---------- USER ----------
+
 useEffect(()=>{
 
 if(
@@ -168,7 +180,9 @@ currentUser
 
 setHistory([]);
 
-setSelectedChat(null);
+setSelectedChat(
+null
+);
 
 loadHistory(
 currentUser
@@ -180,12 +194,16 @@ currentUser
 currentUser
 ]);
 
+
+
+// ---------- SEND ----------
+
 async function explain(){
 
 if(
-!text.trim()
-||
 loading
+||
+!text.trim()
 ||
 !currentUser
 )
@@ -201,8 +219,10 @@ const userId =
 
 currentUser.userId
 ||
+
 currentUser.username
 ||
+
 currentUser.attributes?.sub;
 
 const email =
@@ -227,7 +247,7 @@ text.trim();
 const conversationId =
 crypto.randomUUID();
 
-const optimistic={
+const temp={
 
 id:
 conversationId,
@@ -246,13 +266,13 @@ answer:
 setHistory(
 prev=>
 [
-optimistic,
+temp,
 ...prev
 ]
 );
 
 setSelectedChat(
-optimistic
+temp
 );
 
 setText("");
@@ -295,6 +315,7 @@ let tries=0;
 
 const poll =
 setInterval(
+
 async()=>{
 
 tries++;
@@ -317,7 +338,9 @@ false
 }
 
 },
+
 2000
+
 );
 
 setTimeout(()=>{
@@ -346,6 +369,37 @@ false
 
 }
 
+
+
+// ---------- LOGOUT ----------
+
+async function logout(signOut){
+
+try{
+
+resetState();
+
+localStorage.clear();
+
+sessionStorage.clear();
+
+await signOut();
+
+window.location.replace(
+"/"
+);
+
+}
+catch(err){
+
+console.log(err);
+
+}
+
+}
+
+
+
 return(
 
 <Authenticator>
@@ -363,6 +417,8 @@ currentUser
 !==user.username
 ){
 
+resetState();
+
 setCurrentUser(
 user
 );
@@ -374,20 +430,13 @@ return(
 <div
 style={{
 
-display:
-"flex",
+display:"flex",
 
-height:
-"100vh",
+height:"100vh",
 
-background:
-"#020b24",
+background:"#020b24",
 
-color:
-"white",
-
-fontFamily:
-"Arial"
+color:"white"
 
 }}
 >
@@ -399,16 +448,11 @@ style={{
 
 width:320,
 
-background:
-"#031133",
+background:"#031133",
 
 padding:24,
 
-overflowY:
-"auto",
-
-borderRight:
-"1px solid rgba(255,255,255,.08)"
+overflowY:"auto"
 
 }}
 >
@@ -419,87 +463,31 @@ Conversations
 
 </h2>
 
-<button
-
-onClick={()=>
-setSelectedChat(
-null
-)
-}
-
-style={{
-
-width:
-"100%",
-
-padding:
-18,
-
-border:
-"none",
-
-borderRadius:
-20,
-
-background:
-"#3067e8",
-
-color:
-"white",
-
-fontSize:
-20
-
-}}
-
->
-
-+ New Chat
-
-</button>
-
-<div
-style={{
-marginTop:20
-}}
->
-
 {
 
-history.map(
-chat=>(
+history.map((chat)=>(
 
 <div
 
-key={
-chat.id
-}
+key={chat.id}
 
 onClick={()=>
-setSelectedChat(
-chat
-)
+setSelectedChat(chat)
 }
 
 style={{
 
-padding:20,
+padding:18,
 
-borderRadius:
-18,
+cursor:"pointer",
 
-marginBottom:
-12,
+marginBottom:12,
 
-cursor:
-"pointer",
+borderRadius:18,
 
 background:
 
-selectedChat?.id
-===
-
-chat.id
+selectedChat?.id===chat.id
 
 ?
 
@@ -513,64 +501,16 @@ chat.id
 
 >
 
-<div
-style={{
-
-fontWeight:
-"bold"
-
-}}
->
+<div>
 
 {
 
 chat.question
 
-?.length
->
-
-35
-
-?
-
-chat.question
-.slice(
+?.slice(
 0,
 35
 )
-
-+"..."
-
-:
-
-chat.question
-
-}
-
-</div>
-
-<div
-style={{
-
-opacity:
-.5,
-
-fontSize:
-12,
-
-marginTop:
-10
-
-}}
->
-
-{
-
-new Date(
-chat.createdAt
-)
-
-.toLocaleString()
 
 }
 
@@ -584,7 +524,7 @@ chat.createdAt
 
 </div>
 
-</div>
+
 
 {/* MAIN */}
 
@@ -593,11 +533,9 @@ style={{
 
 flex:1,
 
-display:
-"flex",
+display:"flex",
 
-flexDirection:
-"column"
+flexDirection:"column"
 
 }}
 >
@@ -605,88 +543,50 @@ flexDirection:
 <div
 style={{
 
-padding:
-30,
+padding:30,
 
-textAlign:
-"center",
-
-borderBottom:
-"1px solid rgba(255,255,255,.08)"
+textAlign:"center"
 
 }}
 >
 
-<h1
-style={{
-
-fontSize:
-72
-
-}}
->
+<h1>
 
 Explain Like I'm 5
 
 </h1>
 
-<div
-style={{
-
-opacity:
-.6
-
-}}
->
+<div>
 
 {
 user
 ?.signInDetails
 ?.loginId
-
-||
-
-user
-?.attributes
-?.email
-
 }
 
 </div>
 
 <button
 
-onClick={()=>{
-
-setHistory([]);
-
-setSelectedChat(null);
-
-setCurrentUser(null);
-
-signOut();
-
-}}
+onClick={()=>
+logout(
+signOut
+)
+}
 
 style={{
 
-marginTop:
-20,
+marginTop:20,
 
-background:
-"#ff5757",
+padding:"15px 25px",
 
-padding:
-"16px 30px",
+background:"#ff4f4f",
 
-border:
-"none",
+border:"none",
 
-borderRadius:
-18,
+borderRadius:20,
 
-color:
-"white"
+color:"white"
 
 }}
 
@@ -698,15 +598,14 @@ Sign Out
 
 </div>
 
+
+
 <div
 style={{
 
 flex:1,
 
-padding:40,
-
-overflow:
-"auto"
+padding:40
 
 }}
 >
@@ -722,11 +621,9 @@ selectedChat
 <div
 style={{
 
-display:
-"flex",
+display:"flex",
 
-justifyContent:
-"flex-end"
+justifyContent:"flex-end"
 
 }}
 >
@@ -734,33 +631,20 @@ justifyContent:
 <div
 style={{
 
-background:
-"#3067e8",
+background:"#3067e8",
 
-padding:
-26,
+padding:24,
 
-borderRadius:
-24,
-
-maxWidth:
-500
+borderRadius:20
 
 }}
 >
 
-<div
-style={{
-
-opacity:
-.7
-
-}}
->
+<b>
 
 You
 
-</div>
+</b>
 
 <div>
 
@@ -774,11 +658,12 @@ selectedChat.question
 
 </div>
 
+
+
 <div
 style={{
 
-marginTop:
-40
+marginTop:30
 
 }}
 >
@@ -786,36 +671,20 @@ marginTop:
 <div
 style={{
 
-background:
-"#1c2b4a",
+background:"#1c2b4a",
 
-padding:
-34,
+padding:30,
 
-borderRadius:
-24,
-
-maxWidth:
-800,
-
-lineHeight:
-1.8
+borderRadius:20
 
 }}
 >
 
-<div
-style={{
-
-opacity:
-.7
-
-}}
->
+<b>
 
 ELI5 AI
 
-</div>
+</b>
 
 <div>
 
@@ -835,17 +704,16 @@ selectedChat.answer
 
 </div>
 
+
+
 <div
 style={{
 
-padding:
-30,
+display:"flex",
 
-display:
-"flex",
+gap:20,
 
-gap:
-20
+padding:30
 
 }}
 >
@@ -865,27 +733,15 @@ e.target.value
 
 rows={3}
 
-placeholder=
-"Ask something complicated..."
-
 style={{
 
 flex:1,
 
-background:
-"transparent",
+background:"transparent",
 
-border:
-"1px solid #333",
+color:"white",
 
-borderRadius:
-20,
-
-color:
-"white",
-
-padding:
-20
+padding:20
 
 }}
 
@@ -900,28 +756,6 @@ loading
 onClick={
 explain
 }
-
-style={{
-
-width:
-220,
-
-background:
-"#4285f4",
-
-border:
-"none",
-
-color:
-"white",
-
-fontSize:
-24,
-
-borderRadius:
-20
-
-}}
 
 >
 
