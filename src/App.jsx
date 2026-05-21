@@ -1,34 +1,47 @@
 import "./App.css";
 import { useEffect, useState } from "react";
-import { getCurrentUser } from "aws-amplify/auth";
+import {
+fetchAuthSession
+} from "aws-amplify/auth";
 
-const API_BASE =
+const API =
 import.meta.env.VITE_API_URL;
 
-export default function App() {
+export default function App(){
 
-const [userData,setUserData]=
-useState(null);
+const [
+user,
+setUser
+]=useState(null);
 
-const [history,setHistory]=
-useState([]);
+const [
+history,
+setHistory
+]=useState([]);
 
-const [selectedConversationId,
-setSelectedConversationId]=
-useState(null);
+const [
+selectedConversation,
+setSelectedConversation
+]=useState(null);
 
-const [text,setText]=
-useState("");
+const [
+text,
+setText
+]=useState("");
 
-const [loading,setLoading]=
-useState(false);
+const [
+loading,
+setLoading
+]=useState(false);
 
-const [status,setStatus]=
-useState("");
+const [
+status,
+setStatus
+]=useState("");
 
 
 
-// LOAD USER
+// AUTH
 
 useEffect(()=>{
 
@@ -41,30 +54,63 @@ async function loadUser(){
 
 try{
 
-const user=
-await getCurrentUser();
+const session=
+await fetchAuthSession();
 
-setUserData({
+const payload=
+session.tokens
+?.idToken
+?.payload;
+
+if(payload){
+
+const loaded={
 
 userId:
-user.userId,
+payload.sub,
 
 email:
-user.signInDetails
-?.loginId
+payload.email
 
-||
+};
 
-""
+setUser(
+loaded
+);
 
-});
+localStorage.setItem(
+"user",
+JSON.stringify(
+loaded
+)
+);
+
+return;
+
+}
 
 }
 catch(err){
 
 console.log(
-"AUTH ERROR",
-err
+"Amplify not ready"
+);
+
+}
+
+
+
+const cached=
+localStorage.getItem(
+"user"
+);
+
+if(cached){
+
+setUser(
+JSON.parse(
+cached
+)
 );
 
 }
@@ -73,12 +119,12 @@ err
 
 
 
-// LOAD HISTORY
+// HISTORY
 
 useEffect(()=>{
 
 if(
-userData
+user
 ){
 
 loadHistory();
@@ -86,28 +132,27 @@ loadHistory();
 }
 
 },[
-userData
+user
 ]);
 
 
 async function loadHistory(){
 
-if(
-!userData
-)
-return;
-
 try{
 
 const res=
 await fetch(
-`${API_BASE}/history?userId=${userData.userId}`
+
+`${API}/history?userId=${user.userId}`
+
 );
 
 const rows=
 await res.json();
 
+const ordered=
 rows.sort(
+
 (a,b)=>
 
 new Date(
@@ -123,7 +168,7 @@ b.createdAt
 );
 
 setHistory(
-rows
+ordered
 );
 
 }
@@ -139,38 +184,243 @@ err
 
 
 
-// GROUP
+// SEND
+
+async function explain(){
+
+if(
+loading
+||
+!text.trim()
+||
+!user
+)
+return;
+
+setLoading(
+true
+);
+
+setStatus(
+"Generating..."
+);
+
+const question=
+text;
+
+setText("");
+
+let conversationId=
+selectedConversation;
+
+if(
+!conversationId
+){
+
+conversationId=
+crypto.randomUUID();
+
+setSelectedConversation(
+conversationId
+);
+
+}
+
+try{
+
+await fetch(
+
+`${API}/explain`,
+
+{
+
+method:
+"POST",
+
+headers:{
+"Content-Type":
+"application/json"
+},
+
+body:
+JSON.stringify({
+
+text:
+question,
+
+userId:
+user.userId,
+
+email:
+user.email,
+
+conversationId
+
+})
+
+}
+
+);
+
+poll(
+conversationId
+);
+
+}
+catch(err){
+
+console.log(
+err
+);
+
+setLoading(
+false
+);
+
+setStatus(
+"Failed"
+);
+
+}
+
+}
+
+
+
+function poll(
+conversationId
+){
+
+let attempts=0;
+
+const timer=
+setInterval(
+
+async()=>{
+
+attempts++;
+
+await loadHistory();
+
+const res=
+await fetch(
+
+`${API}/history?userId=${user.userId}`
+
+);
+
+const rows=
+await res.json();
+
+const convo=
+rows.filter(
+
+m=>
+
+m.conversationId===
+conversationId
+
+);
+
+const users=
+convo.filter(
+x=>
+
+x.role==="user"
+);
+
+const assistants=
+convo.filter(
+x=>
+
+x.role==="assistant"
+);
+
+if(
+
+assistants.length
+
+>=
+
+users.length
+
+){
+
+clearInterval(
+timer
+);
+
+setLoading(
+false
+);
+
+setStatus("");
+
+await loadHistory();
+
+}
+
+if(
+attempts>30
+){
+
+clearInterval(
+timer
+);
+
+setLoading(
+false
+);
+
+setStatus(
+"Timed out"
+);
+
+}
+
+},
+
+2000
+
+);
+
+}
+
+
+
+// CONVERSATIONS
 
 const conversations=
+
 Object.values(
 
 history.reduce(
 
-(acc,row)=>{
+(acc,m)=>{
 
 if(
-!row.conversationId
+!m.conversationId
 )
 return acc;
 
 if(
 !acc[
-row.conversationId
+m.conversationId
 ]
 ){
 
 acc[
-row.conversationId
+m.conversationId
 ]={
 
 id:
-row.conversationId,
+m.conversationId,
 
 title:
-row.content,
+m.content,
 
 createdAt:
-row.createdAt
+m.createdAt
 
 };
 
@@ -202,12 +452,7 @@ a.createdAt
 
 
 
-// CURRENT CHAT
-
 const current=
-selectedConversationId
-
-?
 
 history.filter(
 
@@ -215,228 +460,9 @@ m=>
 
 m.conversationId===
 
-selectedConversationId
-
-)
-
-:
-
-[];
-
-
-
-async function explain(){
-
-if(
-loading
-||
-!text.trim()
-)
-return;
-
-if(
-!userData
-){
-
-setStatus(
-"Loading user..."
-);
-
-return;
-
-}
-
-setLoading(
-true);
-
-setStatus(
-"Generating..."
-);
-
-const question=
-text.trim();
-
-setText("");
-
-let conversationId=
-selectedConversationId;
-
-
-if(
-!conversationId
-){
-
-conversationId=
-crypto.randomUUID();
-
-setSelectedConversationId(
-conversationId
-);
-
-}
-
-try{
-
-await fetch(
-`${API_BASE}/explain`,
-{
-
-method:
-"POST",
-
-headers:{
-"Content-Type":
-"application/json"
-},
-
-body:
-JSON.stringify({
-
-text:
-question,
-
-userId:
-userData.userId,
-
-email:
-userData.email,
-
-conversationId
-
-})
-
-}
+selectedConversation
 
 );
-
-
-let tries=0;
-
-const timer=
-setInterval(
-
-async()=>{
-
-tries++;
-
-await loadHistory();
-
-const res=
-await fetch(
-`${API_BASE}/history?userId=${userData.userId}`
-);
-
-const rows=
-await res.json();
-
-const convo=
-rows.filter(
-
-m=>
-
-m.conversationId===
-
-conversationId
-
-);
-
-const users=
-convo.filter(
-m=>
-
-m.role==="user"
-);
-
-const assistants=
-convo.filter(
-m=>
-
-m.role==="assistant"
-);
-
-if(
-assistants.length
->=
-users.length
-){
-
-clearInterval(
-timer
-);
-
-setLoading(
-false
-);
-
-setStatus("");
-
-}
-
-if(
-tries>
-30
-){
-
-clearInterval(
-timer
-);
-
-setLoading(
-false
-);
-
-setStatus(
-"Timeout"
-);
-
-}
-
-},
-
-2000
-
-);
-
-}
-catch(err){
-
-console.log(
-err
-);
-
-setLoading(
-false
-);
-
-setStatus(
-"Failed"
-);
-
-}
-
-}
-
-
-
-function newChat(){
-
-setSelectedConversationId(
-null
-);
-
-setText("");
-
-}
-
-
-
-function logout(){
-
-localStorage.clear();
-
-window.location.reload();
-
-}
 
 
 
@@ -447,13 +473,22 @@ return(
 <div className="sidebar">
 
 <h2>
+
 Conversations
+
 </h2>
 
+
 <button
-onClick={
-newChat
-}
+
+onClick={()=>{
+
+setSelectedConversation(
+null
+);
+
+}}
+
 >
 
 + New Chat
@@ -473,25 +508,11 @@ key={
 c.id
 }
 
-className={
-
-selectedConversationId===
-
-c.id
-
-?
-
-"conversation active"
-
-:
-
-"conversation"
-
-}
+className="conversation"
 
 onClick={()=>
 
-setSelectedConversationId(
+setSelectedConversation(
 c.id
 )
 
@@ -541,7 +562,11 @@ Explain Like I'm 5
 
 {
 
-userData?.email
+user?.email
+
+||
+
+"Loading..."
 
 }
 
@@ -549,9 +574,15 @@ userData?.email
 
 
 <button
-onClick={
-logout
-}
+
+onClick={()=>{
+
+localStorage.clear();
+
+location.reload();
+
+}}
+
 >
 
 Sign Out
@@ -572,23 +603,11 @@ current.map(
 
 key={i}
 
-className={
-
-m.role==="user"
-
-?
-
-"user"
-
-:
-
-"assistant"
-
-}
+className={m.role}
 
 >
 
-<strong>
+<b>
 
 {
 
@@ -604,7 +623,7 @@ m.role==="user"
 
 }
 
-</strong>
+</b>
 
 <p>
 
@@ -647,6 +666,7 @@ text
 }
 
 onChange={
+
 e=>
 
 setText(
@@ -664,7 +684,13 @@ placeholder=
 <button
 
 disabled={
+
 loading
+
+||
+
+!user
+
 }
 
 onClick={
