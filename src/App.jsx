@@ -1,253 +1,256 @@
-import { useEffect, useMemo, useState } from "react";
-import { Authenticator, useAuthenticator } from "@aws-amplify/ui-react";
+import { useEffect, useState } from "react";
+import {
+  getCurrentUser,
+  fetchAuthSession,
+  signOut
+} from "aws-amplify/auth";
 
 const API =
-"https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+  import.meta.env.VITE_API_URL;
 
-function ChatApp() {
+export default function App() {
 
-const {
-user,
-signOut
-}=useAuthenticator();
+const [user,setUser]=useState(null);
 
-const [userData,setUserData]=
+const [text,setText]=useState("");
+
+const [messages,setMessages]=useState([]);
+
+const [conversations,setConversations]=useState([]);
+
+const [conversationId,setConversationId]=
 useState(null);
-
-const [history,setHistory]=
-useState([]);
-
-const [
-selectedConversationId,
-setSelectedConversationId
-]=useState(null);
-
-const [text,setText]=
-useState("");
 
 const [loading,setLoading]=
 useState(false);
 
-const [status,setStatus]=
-useState("");
 
-
-
-// AUTH
 
 useEffect(()=>{
 
-if(user){
+loadUser();
 
-setUserData({
-
-userId:
-user.userId,
-
-email:
-user.signInDetails
-?.loginId
-
-});
-
-}
-
-},[
-user
-]);
+},[]);
 
 
 
-// HISTORY
-
-useEffect(()=>{
-
-if(
-userData?.userId
-){
-
-loadHistory();
-
-}
-
-},[
-userData
-]);
-
-
-
-async function loadHistory(){
+async function loadUser(){
 
 try{
 
-const res=
+const current=
+await getCurrentUser();
 
+setUser(current);
+
+loadConversations(
+current.userId
+);
+
+}
+catch{
+
+setUser(null);
+
+}
+
+}
+
+
+
+async function loadConversations(
+userId
+){
+
+try{
+
+const session=
+await fetchAuthSession();
+
+const token=
+session.tokens?.idToken?.toString();
+
+const res=
 await fetch(
 
-`${API}/history?userId=${userData.userId}`
+`${API}/history?userId=${userId}`,
+
+{
+
+headers:{
+
+Authorization:
+token
+
+}
+
+}
 
 );
 
-const rows=
+const data=
 await res.json();
 
-const grouped={};
+const grouped=
+Object.values(
 
-(rows||[])
-
-.forEach(m=>{
+data.reduce(
+(acc,item)=>{
 
 if(
-!grouped[
-m.conversationId
+!acc[
+item.conversationId
 ]
 ){
 
-grouped[
-m.conversationId
-]={
-
-id:
-m.conversationId,
-
-createdAt:
-m.createdAt,
-
-question:"",
-answer:
-"Generating response..."
-
-};
+acc[
+item.conversationId
+]=[];
 
 }
 
-if(
-m.role==="user"
-){
+acc[
+item.conversationId
+]
+.push(item);
 
-grouped[
-m.conversationId
-].question=
-m.content;
+return acc;
 
-}
+},
 
-if(
-m.role==="assistant"
-){
-
-grouped[
-m.conversationId
-].answer=
-m.content;
-
-}
-
-});
-
-const built=
-
-Object
-.values(
-grouped
+{}
 )
-.sort(
+
+);
+
+grouped.sort(
 
 (a,b)=>
 
 new Date(
-b.createdAt
+b[0].createdAt
 )
 
 -
 
 new Date(
-a.createdAt
+a[0].createdAt
 )
 
 );
 
-setHistory(
-built
+setConversations(
+grouped
 );
 
 }
 catch(err){
 
-console.log(
-err
+console.log(err);
+
+}
+
+}
+
+
+
+async function loadConversation(
+id
+){
+
+try{
+
+const session=
+await fetchAuthSession();
+
+const token=
+session.tokens?.idToken?.toString();
+
+const res=
+await fetch(
+
+`${API}/history?conversationId=${id}`,
+
+{
+
+headers:{
+
+Authorization:
+token
+
+}
+
+}
+
+);
+
+const data=
+await res.json();
+
+data.sort(
+
+(a,b)=>
+
+new Date(
+a.createdAt
+)
+
+-
+
+new Date(
+b.createdAt
+)
+
+);
+
+setMessages(
+data
+);
+
+setConversationId(
+id
 );
 
 }
+catch(err){
+
+console.log(err);
+
+}
 
 }
 
 
 
-// SEND
-
-async function explain(){
+async function send(){
 
 if(
-loading
-||
 !text.trim()
 ||
-!userData
-)
+loading
+||
+!user
+){
+
 return;
+
+}
 
 setLoading(
 true
 );
 
-const question=
-text;
-
-setText("");
-
-let cid=
-selectedConversationId;
-
-if(
-!cid
-){
-
-cid=
-crypto.randomUUID();
-
-setSelectedConversationId(
-cid
-);
-
-}
-
-setHistory(prev=>[
-
-{
-
-id:cid,
-
-question,
-
-answer:
-"Generating response...",
-
-createdAt:
-new Date()
-.toISOString()
-
-},
-
-...prev
-
-]);
-
 try{
+
+const session=
+await fetchAuthSession();
+
+const token=
+session.tokens?.idToken?.toString();
 
 await fetch(
 
-`${API}/explain`,
+`${API}/send`,
 
 {
 
@@ -255,6 +258,9 @@ method:
 "POST",
 
 headers:{
+
+Authorization:
+token,
 
 "Content-Type":
 "application/json"
@@ -264,17 +270,16 @@ headers:{
 body:
 JSON.stringify({
 
-text:
-question,
+text,
 
 userId:
-userData.userId,
+user.userId,
 
 email:
-userData.email,
+user.signInDetails
+?.loginId,
 
-conversationId:
-cid
+conversationId
 
 })
 
@@ -282,164 +287,87 @@ cid
 
 );
 
-poll(
-cid
-);
+setText("");
 
-}
-catch{
-
-setLoading(
-false
-);
-
-}
-
-}
-
-
-
-function poll(cid){
-
-let tries=0;
-
-const timer=
-
-setInterval(
+setTimeout(
 
 async()=>{
 
-tries++;
-
-await loadHistory();
-
-const current=
-
-history.find(
-
-x=>
-
-x.id===cid
-
+await loadConversations(
+user.userId
 );
 
 if(
-
-current
-
-&&
-
-current.answer
-
-!==
-
-"Generating response..."
-
+conversationId
 ){
 
-clearInterval(
-timer
-);
-
-setLoading(
-false
+await loadConversation(
+conversationId
 );
 
 }
 
-if(
-tries>20
-){
-
-clearInterval(
-timer
-);
-
 setLoading(
 false
 );
-
-}
 
 },
 
-2000
+3000
 
+);
+
+}
+catch(err){
+
+console.log(err);
+
+setLoading(
+false
+);
+
+}
+
+}
+
+
+
+async function newChat(){
+
+setMessages([]);
+
+setConversationId(
+null
 );
 
 }
 
 
 
-const selected=
+async function logout(){
 
-useMemo(
+await signOut();
 
-()=>
+location.reload();
 
-history.find(
-
-x=>
-
-x.id===
-
-selectedConversationId
-
-),
-
-[
-history,
-selectedConversationId
-]
-
-);
+}
 
 
 
 return(
 
-<div
-style={{
+<div className="app">
 
-display:"flex",
+<div className="sidebar">
 
-height:"100vh",
-
-background:"#020b24",
-
-color:"white"
-
-}}
-
->
-
-<div
-style={{
-
-width:320,
-
-padding:20
-
-}}
-
->
-
-<h2>
-
+<h1>
 Conversations
-
-</h2>
+</h1>
 
 <button
-
-onClick={()=>
-
-setSelectedConversationId(
-null
-)
-
+onClick={
+newChat
 }
-
 >
 
 + New Chat
@@ -448,33 +376,46 @@ null
 
 {
 
-history.map(
+conversations.map(
 
-c=>
+(c)=>(
 
 <div
 
 key={
-c.id
+c[0]
+.conversationId
 }
+
+className="conv"
 
 onClick={()=>
 
-setSelectedConversationId(
-c.id
+loadConversation(
+c[0]
+.conversationId
 )
 
 }
 
 >
 
-<h3>
+{
 
-{c.question}
+c.find(
+x=>
 
-</h3>
+x.role==="user"
+
+)
+
+?.content
+
+}
 
 </div>
+
+)
 
 )
 
@@ -484,18 +425,7 @@ c.id
 
 
 
-<div
-style={{
-
-flex:1,
-
-display:"flex",
-
-flexDirection:"column"
-
-}}
-
->
+<div className="main">
 
 <h1>
 
@@ -506,71 +436,92 @@ Explain Like I'm 5
 <p>
 
 {
-
-userData?.email
-
+user
+?.signInDetails
+?.loginId
 }
 
 </p>
 
 <button
-
 onClick={
-signOut
+logout
 }
-
 >
 
 Sign Out
 
 </button>
 
+<div className="chat">
 
+{
+
+messages.map(
+
+(msg,i)=>(
 
 <div
-style={{
 
-flex:1
+key={i}
 
-}}
+className={
+
+msg.role===
+
+"user"
+
+?
+
+"user"
+
+:
+
+"assistant"
+
+}
 
 >
 
+<div>
+
 {
 
-selected
+msg.role===
 
-&&
+"user"
 
-<>
+?
 
-<p>
+"You"
 
-You:
-{
-selected.question
-}
+:
 
-</p>
-
-<p>
-
-ELI5:
-{
-selected.answer
-}
-
-</p>
-
-</>
+"ELI5"
 
 }
 
 </div>
 
-
-
 <div>
+
+{
+
+msg.content
+
+}
+
+</div>
+
+</div>
+
+)
+
+)
+
+}
+
+</div>
 
 <textarea
 
@@ -579,14 +530,17 @@ text
 }
 
 onChange={
-
-e=>
+(e)=>
 
 setText(
 e.target.value
 )
 
 }
+
+placeholder=
+
+"Ask something complicated..."
 
 />
 
@@ -597,7 +551,7 @@ loading
 }
 
 onClick={
-explain
+send
 }
 
 >
@@ -608,7 +562,7 @@ loading
 
 ?
 
-"Generating"
+"Generating..."
 
 :
 
@@ -621,24 +575,6 @@ loading
 </div>
 
 </div>
-
-</div>
-
-);
-
-}
-
-
-
-export default function App(){
-
-return(
-
-<Authenticator>
-
-<ChatApp/>
-
-</Authenticator>
 
 );
 
