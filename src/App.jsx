@@ -5,6 +5,8 @@ import {
   signOut
 } from "aws-amplify/auth";
 
+import "./App.css";
+
 const API =
   import.meta.env.VITE_API_URL;
 
@@ -12,45 +14,53 @@ export default function App() {
 
 const [user,setUser]=useState(null);
 
+const [loading,setLoading]=useState(true);
+
+const [sending,setSending]=useState(false);
+
 const [text,setText]=useState("");
 
 const [messages,setMessages]=useState([]);
 
 const [conversations,setConversations]=useState([]);
 
-const [conversationId,setConversationId]=
-useState(null);
-
-const [loading,setLoading]=
-useState(false);
+const [selected,setSelected]=useState(null);
 
 
 
 useEffect(()=>{
 
-loadUser();
+boot();
 
 },[]);
 
 
 
-async function loadUser(){
+async function boot(){
 
 try{
 
-const current=
+const current =
 await getCurrentUser();
 
 setUser(current);
 
-loadConversations(
+await loadConversations(
 current.userId
 );
 
 }
-catch{
+catch(err){
 
-setUser(null);
+console.log(
+"auth",
+err
+);
+
+}
+finally{
+
+setLoading(false);
 
 }
 
@@ -64,13 +74,14 @@ userId
 
 try{
 
-const session=
+const session =
 await fetchAuthSession();
 
-const token=
-session.tokens?.idToken?.toString();
+const token =
+session.tokens?.idToken
+?.toString();
 
-const res=
+const res =
 await fetch(
 
 `${API}/history?userId=${userId}`,
@@ -88,56 +99,67 @@ token
 
 );
 
-const data=
+const rows =
 await res.json();
 
-const grouped=
-Object.values(
-
-data.reduce(
-(acc,item)=>{
-
 if(
-!acc[
-item.conversationId
-]
+!Array.isArray(rows)
 ){
 
-acc[
-item.conversationId
-]=[];
+return;
 
 }
 
-acc[
-item.conversationId
-]
-.push(item);
-
-return acc;
-
-},
-
-{}
-)
-
-);
-
-grouped.sort(
+rows.sort(
 
 (a,b)=>
 
 new Date(
-b[0].createdAt
+b.createdAt
 )
 
 -
 
 new Date(
-a[0].createdAt
+a.createdAt
 )
 
 );
+
+const grouped =
+[];
+
+const seen =
+new Set();
+
+for(
+const row
+of rows
+){
+
+if(
+!seen.has(
+row.conversationId
+)
+){
+
+seen.add(
+row.conversationId
+);
+
+grouped.push({
+
+id:
+row.conversationId,
+
+title:
+row.content
+
+});
+
+}
+
+}
 
 setConversations(
 grouped
@@ -146,7 +168,9 @@ grouped
 }
 catch(err){
 
-console.log(err);
+console.log(
+err
+);
 
 }
 
@@ -154,19 +178,22 @@ console.log(err);
 
 
 
-async function loadConversation(
+async function openConversation(
 id
 ){
 
 try{
 
-const session=
+setSelected(id);
+
+const session =
 await fetchAuthSession();
 
-const token=
-session.tokens?.idToken?.toString();
+const token =
+session.tokens?.idToken
+?.toString();
 
-const res=
+const res =
 await fetch(
 
 `${API}/history?conversationId=${id}`,
@@ -184,10 +211,10 @@ token
 
 );
 
-const data=
+const rows =
 await res.json();
 
-data.sort(
+rows.sort(
 
 (a,b)=>
 
@@ -204,17 +231,15 @@ b.createdAt
 );
 
 setMessages(
-data
-);
-
-setConversationId(
-id
+rows
 );
 
 }
 catch(err){
 
-console.log(err);
+console.log(
+err
+);
 
 }
 
@@ -227,7 +252,7 @@ async function send(){
 if(
 !text.trim()
 ||
-loading
+sending
 ||
 !user
 ){
@@ -236,18 +261,20 @@ return;
 
 }
 
-setLoading(
+setSending(
 true
 );
 
 try{
 
-const session=
+const session =
 await fetchAuthSession();
 
-const token=
-session.tokens?.idToken?.toString();
+const token =
+session.tokens?.idToken
+?.toString();
 
+const res =
 await fetch(
 
 `${API}/send`,
@@ -279,7 +306,8 @@ email:
 user.signInDetails
 ?.loginId,
 
-conversationId
+conversationId:
+selected
 
 })
 
@@ -287,42 +315,35 @@ conversationId
 
 );
 
+const data =
+await res.json();
+
 setText("");
 
-setTimeout(
-
-async()=>{
+const id =
+data.conversationId
+||
+selected;
 
 await loadConversations(
 user.userId
 );
 
-if(
-conversationId
-){
-
-await loadConversation(
-conversationId
-);
-
-}
-
-setLoading(
-false
-);
-
-},
-
-3000
-
+await openConversation(
+id
 );
 
 }
 catch(err){
 
-console.log(err);
+console.log(
+err
+);
 
-setLoading(
+}
+finally{
+
+setSending(
 false
 );
 
@@ -334,10 +355,12 @@ false
 
 async function newChat(){
 
-setMessages([]);
-
-setConversationId(
+setSelected(
 null
+);
+
+setMessages(
+[]
 );
 
 }
@@ -346,9 +369,38 @@ null
 
 async function logout(){
 
+try{
+
 await signOut();
 
-location.reload();
+window.location.reload();
+
+}
+catch(err){
+
+console.log(
+err
+);
+
+}
+
+}
+
+
+
+if(
+loading
+){
+
+return(
+
+<div className="center">
+
+Loading...
+
+</div>
+
+);
 
 }
 
@@ -361,7 +413,9 @@ return(
 <div className="sidebar">
 
 <h1>
+
 Conversations
+
 </h1>
 
 <button
@@ -382,18 +436,14 @@ conversations.map(
 
 <div
 
-key={
-c[0]
-.conversationId
-}
+key={c.id}
 
-className="conv"
+className="conversation"
 
 onClick={()=>
 
-loadConversation(
-c[0]
-.conversationId
+openConversation(
+c.id
 )
 
 }
@@ -402,14 +452,7 @@ c[0]
 
 {
 
-c.find(
-x=>
-
-x.role==="user"
-
-)
-
-?.content
+c.title
 
 }
 
@@ -433,15 +476,17 @@ Explain Like I'm 5
 
 </h1>
 
-<p>
+<div>
 
 {
+
 user
 ?.signInDetails
 ?.loginId
+
 }
 
-</p>
+</div>
 
 <button
 onClick={
@@ -453,13 +498,15 @@ Sign Out
 
 </button>
 
-<div className="chat">
+<div
+className="chat"
+>
 
 {
 
 messages.map(
 
-(msg,i)=>(
+(m,i)=>(
 
 <div
 
@@ -467,29 +514,17 @@ key={i}
 
 className={
 
-msg.role===
-
-"user"
-
-?
-
-"user"
-
-:
-
-"assistant"
+m.role
 
 }
 
 >
 
-<div>
+<strong>
 
 {
 
-msg.role===
-
-"user"
+m.role==="user"
 
 ?
 
@@ -501,13 +536,13 @@ msg.role===
 
 }
 
-</div>
+</strong>
 
 <div>
 
 {
 
-msg.content
+m.content
 
 }
 
@@ -522,6 +557,10 @@ msg.content
 }
 
 </div>
+
+<div
+className="input"
+>
 
 <textarea
 
@@ -530,7 +569,7 @@ text
 }
 
 onChange={
-(e)=>
+e=>
 
 setText(
 e.target.value
@@ -546,23 +585,23 @@ placeholder=
 
 <button
 
-disabled={
-loading
-}
-
 onClick={
 send
+}
+
+disabled={
+sending
 }
 
 >
 
 {
 
-loading
+sending
 
 ?
 
-"Generating..."
+"Generating"
 
 :
 
@@ -571,6 +610,8 @@ loading
 }
 
 </button>
+
+</div>
 
 </div>
 
