@@ -578,7 +578,7 @@ chat.createdAt
 
 </div>
 
-)
+))
 
 }
 
