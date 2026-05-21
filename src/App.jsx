@@ -1,648 +1,846 @@
 import { useEffect, useState } from "react";
-import {
-  getCurrentUser,
-  fetchAuthSession,
-  signOut
-} from "aws-amplify/auth";
+import { Authenticator } from "@aws-amplify/ui-react";
 
-import "./App.css";
+function App() {
 
-const API =
-  import.meta.env.VITE_API_URL;
+  const API_BASE =
+    "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
-export default function App() {
+  const [text, setText] =
+    useState("");
 
-const [user,setUser]=useState(null);
+  const [status, setStatus] =
+    useState("");
 
-const [loading,setLoading]=useState(true);
+  const [history, setHistory] =
+    useState([]);
 
-const [sending,setSending]=useState(false);
+  const [selectedConversationId,
+    setSelectedConversationId] =
+      useState(null);
 
-const [text,setText]=useState("");
+  const [userData,
+    setUserData] =
+      useState(null);
 
-const [messages,setMessages]=useState([]);
+  // GENERATE UUID
+  const generateConversationId =
+    () => {
 
-const [conversations,setConversations]=useState([]);
+      return crypto.randomUUID();
+    };
 
-const [conversationId,setConversationId]=
-useState(null);
+  // BUILD CONVERSATIONS
+  const buildConversations =
+    (items) => {
 
+      const grouped = {};
 
+      items.forEach(item => {
 
-useEffect(()=>{
+        if (
+          !grouped[item.conversationId]
+        ) {
 
-initialize();
+          grouped[item.conversationId] = {
 
-},[]);
+            id:
+              item.conversationId,
 
+            createdAt:
+              item.createdAt,
 
+            question: "",
 
-async function initialize(){
+            answer:
+              "Generating response..."
+          };
+        }
 
-try{
+        if (
+          item.role === "user"
+        ) {
 
-const current =
-await getCurrentUser();
+          grouped[
+            item.conversationId
+          ].question =
+            item.content;
+        }
 
-setUser(current);
+        if (
+          item.role ===
+          "assistant"
+        ) {
 
-await loadConversations(
-current.userId
-);
+          grouped[
+            item.conversationId
+          ].answer =
+            item.content;
+        }
+      });
 
+      return Object.values(grouped)
+        .sort(
+          (a, b) =>
+            new Date(
+              b.createdAt
+            ) -
+            new Date(
+              a.createdAt
+            )
+        );
+    };
+
+  // LOAD HISTORY
+  const loadHistory =
+    async (currentUser) => {
+
+      try {
+
+        const response =
+          await fetch(
+            `${API_BASE}/history?userId=${currentUser.userId}`
+          );
+
+        const data =
+          await response.json();
+
+        const safeData =
+          Array.isArray(data)
+            ? data
+            : [];
+
+        const conversations =
+          buildConversations(
+            safeData
+          );
+
+        setHistory(
+          conversations
+        );
+
+        if (
+          conversations.length > 0 &&
+          !selectedConversationId
+        ) {
+
+          setSelectedConversationId(
+            conversations[0].id
+          );
+        }
+
+      } catch (error) {
+
+        console.error(error);
+      }
+    };
+
+  // INITIAL LOAD
+  useEffect(() => {
+
+    if (userData?.userId) {
+
+      loadHistory(userData);
+    }
+
+  }, [userData]);
+
+  // SELECTED CHAT
+  const selectedChat =
+    history.find(
+      c =>
+        c.id ===
+        selectedConversationId
+    );
+
+  // NEW CHAT
+  const newChat = () => {
+
+    setSelectedConversationId(
+      null
+    );
+
+    setText("");
+
+    setStatus("");
+  };
+
+  // EXPLAIN
+  const explain =
+    async () => {
+
+      if (!text.trim()) return;
+
+      const currentText = text;
+
+      const conversationId =
+        generateConversationId();
+
+      const optimisticConversation = {
+
+        id:
+          conversationId,
+
+        question:
+          currentText,
+
+        answer:
+          "Generating response...",
+
+        createdAt:
+          new Date()
+            .toISOString()
+      };
+
+      setHistory(prev => [
+
+        optimisticConversation,
+
+        ...prev
+      ]);
+
+      setSelectedConversationId(
+        conversationId
+      );
+
+      setText("");
+
+      setStatus(
+        "Request queued successfully."
+      );
+
+      try {
+
+        await fetch(
+          `${API_BASE}/explain`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+
+              text:
+                currentText,
+
+              userId:
+                userData.userId,
+
+              email:
+                userData
+                  .signInDetails
+                  .loginId,
+
+              conversationId
+            })
+          }
+        );
+
+        // POLLING
+        let attempts = 0;
+
+        const interval =
+          setInterval(async () => {
+
+            attempts++;
+
+            try {
+
+              const response =
+                await fetch(
+                  `${API_BASE}/history?userId=${userData.userId}`
+                );
+
+              const data =
+                await response.json();
+
+              const safeData =
+                Array.isArray(data)
+                  ? data
+                  : [];
+
+              const conversations =
+                buildConversations(
+                  safeData
+                );
+
+              setHistory(
+                conversations
+              );
+
+              const updated =
+                conversations.find(
+                  c =>
+                    c.id ===
+                    conversationId
+                );
+
+              if (
+                updated &&
+                updated.answer !==
+                  "Generating response..."
+              ) {
+
+                setStatus("");
+
+                clearInterval(
+                  interval
+                );
+              }
+
+            } catch (error) {
+
+              console.error(error);
+            }
+
+            if (
+              attempts >= 20
+            ) {
+
+              clearInterval(
+                interval
+              );
+
+              setStatus("");
+            }
+
+          }, 2000);
+
+      } catch (error) {
+
+        console.error(error);
+
+        setStatus(
+          "Something went wrong."
+        );
+      }
+    };
+
+  return (
+
+    <Authenticator>
+
+      {({ signOut, user }) => {
+
+        if (
+          user &&
+          !userData
+        ) {
+
+          setUserData(user);
+        }
+
+        return (
+
+          <div
+            style={{
+
+              display: "flex",
+
+              height: "100vh",
+
+              background:
+                "#020b24",
+
+              color: "white",
+
+              fontFamily:
+                "Arial"
+            }}
+          >
+
+            {/* SIDEBAR */}
+            <div
+              style={{
+
+                width: 320,
+
+                background:
+                  "#031133",
+
+                borderRight:
+                  "1px solid rgba(255,255,255,0.08)",
+
+                padding: 20,
+
+                overflowY: "auto"
+              }}
+            >
+
+              <h2
+                style={{
+                  textAlign: "center"
+                }}
+              >
+                Conversations
+              </h2>
+
+              <button
+
+                onClick={newChat}
+
+                style={{
+
+                  width: "100%",
+
+                  padding: 18,
+
+                  borderRadius: 18,
+
+                  border: "none",
+
+                  background:
+                    "#3067e8",
+
+                  color: "white",
+
+                  fontWeight:
+                    "bold",
+
+                  fontSize: 20,
+
+                  marginTop: 20,
+
+                  marginBottom: 30,
+
+                  cursor: "pointer"
+                }}
+              >
+                + New Chat
+              </button>
+
+              {history.map(
+                (chat, index) => (
+
+                  <div
+
+                    key={index}
+
+                    onClick={() =>
+                      setSelectedConversationId(
+                        chat.id
+                      )
+                    }
+
+                    style={{
+
+                      padding: 20,
+
+                      borderRadius: 20,
+
+                      marginBottom: 18,
+
+                      cursor: "pointer",
+
+                      background:
+                        selectedConversationId ===
+                        chat.id
+                          ? "#1c2b4a"
+                          : "transparent",
+
+                      border:
+                        "1px solid rgba(255,255,255,0.08)"
+                    }}
+                  >
+
+                    <div
+                      style={{
+
+                        fontWeight:
+                          "bold",
+
+                        marginBottom: 10,
+
+                        fontSize: 17
+                      }}
+                    >
+                      {
+                        chat.question
+                          ?.length > 40
+                          ? chat.question.slice(
+                              0,
+                              40
+                            ) + "..."
+                          : chat.question
+                      }
+                    </div>
+
+                    <div
+                      style={{
+
+                        fontSize: 12,
+
+                        opacity: 0.6
+                      }}
+                    >
+                      {new Date(
+                        chat.createdAt
+                      ).toLocaleString()}
+                    </div>
+
+                  </div>
+                )
+              )}
+
+            </div>
+
+            {/* MAIN */}
+            <div
+              style={{
+
+                flex: 1,
+
+                display: "flex",
+
+                flexDirection:
+                  "column"
+              }}
+            >
+
+              <div
+                style={{
+
+                  padding: 30,
+
+                  display: "flex",
+
+                  justifyContent:
+                    "space-between",
+
+                  alignItems:
+                    "center",
+
+                  borderBottom:
+                    "1px solid rgba(255,255,255,0.08)"
+                }}
+              >
+
+                <div>
+
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: 72
+                    }}
+                  >
+                    Explain Like I'm 5
+                  </h1>
+
+                  <p
+                    style={{
+                      opacity: 0.6
+                    }}
+                  >
+                    {
+                      user
+                        ?.signInDetails
+                        ?.loginId
+                    }
+                  </p>
+
+                </div>
+
+                <button
+
+                  onClick={signOut}
+
+                  style={{
+
+                    background:
+                      "#ff4f4f",
+
+                    border: "none",
+
+                    color: "white",
+
+                    padding:
+                      "18px 28px",
+
+                    borderRadius: 20,
+
+                    fontSize: 18,
+
+                    fontWeight:
+                      "bold",
+
+                    cursor: "pointer"
+                  }}
+                >
+                  Sign Out
+                </button>
+
+              </div>
+
+              {/* CHAT AREA */}
+              <div
+                style={{
+
+                  flex: 1,
+
+                  overflowY: "auto",
+
+                  padding: 40
+                }}
+              >
+
+                {!selectedChat ? (
+
+                  <div
+                    style={{
+
+                      textAlign:
+                        "center",
+
+                      marginTop: 200,
+
+                      opacity: 0.6
+                    }}
+                  >
+
+                    <h2>
+                      Ask anything
+                    </h2>
+
+                    <p>
+                      Your simplified explanations
+                      will appear here.
+                    </p>
+
+                  </div>
+
+                ) : (
+
+                  <>
+                    {/* USER */}
+                    <div
+                      style={{
+
+                        display: "flex",
+
+                        justifyContent:
+                          "flex-end",
+
+                        marginBottom: 40
+                      }}
+                    >
+
+                      <div
+                        style={{
+
+                          background:
+                            "#3067e8",
+
+                          padding: 24,
+
+                          borderRadius: 30,
+
+                          maxWidth: "45%"
+                        }}
+                      >
+
+                        <div
+                          style={{
+
+                            fontSize: 13,
+
+                            opacity: 0.7,
+
+                            marginBottom: 10,
+
+                            fontWeight:
+                              "bold"
+                          }}
+                        >
+                          You
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 22,
+                            lineHeight: 1.7
+                          }}
+                        >
+                          {
+                            selectedChat.question
+                          }
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                    {/* AI */}
+                    <div
+                      style={{
+
+                        display: "flex",
+
+                        justifyContent:
+                          "flex-start"
+                      }}
+                    >
+
+                      <div
+                        style={{
+
+                          background:
+                            "#1c2b4a",
+
+                          padding: 34,
+
+                          borderRadius: 30,
+
+                          maxWidth: "75%",
+
+                          fontSize: 22,
+
+                          lineHeight: 1.9,
+
+                          whiteSpace:
+                            "pre-wrap"
+                        }}
+                      >
+
+                        <div
+                          style={{
+
+                            fontSize: 13,
+
+                            opacity: 0.7,
+
+                            marginBottom: 18,
+
+                            fontWeight:
+                              "bold"
+                          }}
+                        >
+                          ELI5 AI
+                        </div>
+
+                        {
+                          selectedChat.answer
+                        }
+
+                      </div>
+
+                    </div>
+                  </>
+                )}
+
+              </div>
+
+              {/* INPUT */}
+              <div
+                style={{
+
+                  padding: 25,
+
+                  borderTop:
+                    "1px solid rgba(255,255,255,0.08)",
+
+                  display: "flex",
+
+                  gap: 20
+                }}
+              >
+
+                <textarea
+
+                  rows={2}
+
+                  value={text}
+
+                  onChange={(e) =>
+                    setText(
+                      e.target.value
+                    )
+                  }
+
+                  placeholder="Ask something complicated..."
+
+                  style={{
+
+                    flex: 1,
+
+                    background:
+                      "transparent",
+
+                    border:
+                      "1px solid rgba(255,255,255,0.12)",
+
+                    borderRadius: 22,
+
+                    color: "white",
+
+                    padding: 24,
+
+                    fontSize: 20,
+
+                    resize: "none",
+
+                    outline: "none"
+                  }}
+                />
+
+                <button
+
+                  onClick={explain}
+
+                  style={{
+
+                    background:
+                      "#4285f4",
+
+                    border: "none",
+
+                    color: "white",
+
+                    padding:
+                      "0 40px",
+
+                    borderRadius: 22,
+
+                    fontWeight:
+                      "bold",
+
+                    fontSize: 24,
+
+                    cursor: "pointer"
+                  }}
+                >
+                  Explain
+                </button>
+
+              </div>
+
+              {status && (
+
+                <div
+                  style={{
+
+                    textAlign:
+                      "center",
+
+                    paddingBottom: 18,
+
+                    opacity: 0.7
+                  }}
+                >
+                  {status}
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        );
+      }}
+
+    </Authenticator>
+  );
 }
-catch(err){
 
-console.log(
-err
-);
-
-}
-finally{
-
-setLoading(false);
-
-}
-
-}
-
-
-
-async function authHeaders(){
-
-const session =
-await fetchAuthSession();
-
-const token =
-session.tokens?.idToken
-?.toString();
-
-if(!token){
-
-throw new Error(
-"NOT_AUTHENTICATED"
-);
-
-}
-
-return{
-
-Authorization:
-token,
-
-"Content-Type":
-"application/json"
-
-};
-
-}
-
-
-
-async function loadConversations(
-userId
-){
-
-try{
-
-const headers =
-await authHeaders();
-
-const res =
-await fetch(
-
-`${API}/history?userId=${userId}`,
-
-{
-
-headers
-
-}
-
-);
-
-const rows =
-await res.json();
-
-if(
-!Array.isArray(rows)
-){
-
-setConversations([]);
-
-return;
-
-}
-
-rows.sort(
-
-(a,b)=>
-
-new Date(
-b.createdAt
-)
-
--
-
-new Date(
-a.createdAt
-)
-
-);
-
-const grouped =
-[];
-
-const seen =
-new Set();
-
-for(
-const row
-of rows
-){
-
-if(
-!seen.has(
-row.conversationId
-)
-){
-
-seen.add(
-row.conversationId
-);
-
-grouped.push({
-
-id:
-row.conversationId,
-
-title:
-row.content
-
-});
-
-}
-
-}
-
-setConversations(
-grouped
-);
-
-}
-catch(err){
-
-console.log(
-err
-);
-
-}
-
-}
-
-
-
-async function openConversation(
-id
-){
-
-try{
-
-setConversationId(
-id
-);
-
-const headers =
-await authHeaders();
-
-const res =
-await fetch(
-
-`${API}/history?conversationId=${id}`,
-
-{
-
-headers
-
-}
-
-);
-
-const rows =
-await res.json();
-
-rows.sort(
-
-(a,b)=>
-
-new Date(
-a.createdAt
-)
-
--
-
-new Date(
-b.createdAt
-)
-
-);
-
-setMessages(
-rows
-);
-
-}
-catch(err){
-
-console.log(
-err
-);
-
-}
-
-}
-
-
-
-async function send(){
-
-if(
-!text.trim()
-||
-sending
-||
-!user
-){
-
-return;
-
-}
-
-try{
-
-setSending(true);
-
-const headers =
-await authHeaders();
-
-const res =
-await fetch(
-
-`${API}/send`,
-
-{
-
-method:
-"POST",
-
-headers,
-
-body:
-JSON.stringify({
-
-text,
-
-userId:
-user.userId,
-
-email:
-user.signInDetails
-?.loginId,
-
-conversationId
-
-})
-
-}
-
-);
-
-const data =
-await res.json();
-
-if(
-!res.ok
-){
-
-throw new Error(
-data.error
-);
-
-}
-
-setText("");
-
-const id =
-data.conversationId
-||
-conversationId;
-
-await loadConversations(
-user.userId
-);
-
-if(id){
-
-await new Promise(
-r=>
-
-setTimeout(
-r,
-2000
-)
-
-);
-
-await openConversation(
-id
-);
-
-}
-
-}
-catch(err){
-
-console.log(
-err
-);
-
-alert(
-err.message
-);
-
-}
-finally{
-
-setSending(false);
-
-}
-
-}
-
-
-
-function newChat(){
-
-setConversationId(
-null
-);
-
-setMessages([]);
-
-setText("");
-
-}
-
-
-
-async function logout(){
-
-try{
-
-await signOut();
-
-window.location.reload();
-
-}
-catch(err){
-
-console.log(
-err
-);
-
-}
-
-}
-
-
-
-if(
-loading
-){
-
-return(
-
-<div className="loading">
-
-Loading...
-
-</div>
-
-);
-
-}
-
-
-
-return(
-
-<div className="app">
-
-<div className="sidebar">
-
-<h1>
-
-Conversations
-
-</h1>
-
-<button
-onClick={
-newChat
-}
->
-
-+ New Chat
-
-</button>
-
-{
-
-conversations.map(
-
-(c)=>(
-
-<div
-
-key={
-c.id
-}
-
-className="conversation"
-
-onClick={()=>
-
-openConversation(
-c.id
-)
-
-}
-
->
-
-{
-
-c.title
-
-}
-
-</div>
-
-)
-
-)
-
-}
-
-</div>
-
-
-
-<div className="main">
-
-<h1>
-
-Explain Like I'm 5
-
-</h1>
-
-<div>
-
-{
-
-user
-?.signInDetails
-?.loginId
-
-}
-
-</div>
-
-<button
-onClick={
-logout
-}
->
-
-Sign Out
-
-</button>
-
-<div className="messages">
-
-{
-
-messages.map(
-
-(m,index)=>(
-
-<div
-
-key={index}
-
-className={
-
-m.role
-
-}
-
->
-
-<div>
-
-{
-
-m.role==="user"
-
-?
-
-"You"
-
-:
-
-"ELI5"
-
-}
-
-</div>
-
-<div>
-
-{
-
-m.content
-
-}
-
-</div>
-
-</div>
-
-)
-
-)
-
-}
-
-</div>
-
-<div className="input">
-
-<textarea
-
-value={
-text
-}
-
-onChange={
-e=>
-
-setText(
-e.target.value
-)
-
-}
-
-placeholder=
-
-"Ask something complicated..."
-
-></textarea>
-
-<button
-
-disabled={
-sending
-}
-
-onClick={
-send
-}
-
->
-
-{
-
-sending
-
-?
-
-"Generating..."
-
-:
-
-"Explain"
-
-}
-
-</button>
-
-</div>
-
-</div>
-
-</div>
-
-);
-
-}
+export default App;
