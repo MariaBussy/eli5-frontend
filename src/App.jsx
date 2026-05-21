@@ -1,5 +1,6 @@
 import "./App.css";
 import { useEffect, useState } from "react";
+import { getCurrentUser } from "aws-amplify/auth";
 
 const API_BASE =
 import.meta.env.VITE_API_URL;
@@ -12,47 +13,64 @@ useState(null);
 const [history,setHistory]=
 useState([]);
 
+const [selectedConversationId,
+setSelectedConversationId]=
+useState(null);
+
 const [text,setText]=
 useState("");
 
 const [loading,setLoading]=
 useState(false);
 
-const [selectedConversationId,
-setSelectedConversationId]=
-useState(null);
-
 const [status,setStatus]=
 useState("");
+
 
 
 // LOAD USER
 
 useEffect(()=>{
 
+loadUser();
+
+},[]);
+
+
+async function loadUser(){
+
 try{
 
-const raw =
-localStorage.getItem(
-"user"
-);
+const user=
+await getCurrentUser();
 
-if(raw){
+setUserData({
 
-setUserData(
-JSON.parse(raw)
-);
+userId:
+user.userId,
 
-}
+email:
+user.signInDetails
+?.loginId
+
+||
+
+""
+
+});
 
 }
 catch(err){
 
-console.log(err);
+console.log(
+"AUTH ERROR",
+err
+);
 
 }
 
-},[]);
+}
+
 
 
 // LOAD HISTORY
@@ -60,7 +78,7 @@ console.log(err);
 useEffect(()=>{
 
 if(
-userData?.userId
+userData
 ){
 
 loadHistory();
@@ -72,11 +90,10 @@ userData
 ]);
 
 
-const loadHistory=
-async()=>{
+async function loadHistory(){
 
 if(
-!userData?.userId
+!userData
 )
 return;
 
@@ -89,12 +106,6 @@ await fetch(
 
 const rows=
 await res.json();
-
-if(
-Array.isArray(
-rows
-)
-){
 
 rows.sort(
 (a,b)=>
@@ -116,18 +127,19 @@ rows
 );
 
 }
-
-}
 catch(err){
 
-console.log(err);
+console.log(
+err
+);
 
 }
 
-};
+}
 
 
-// CONVERSATIONS
+
+// GROUP
 
 const conversations=
 Object.values(
@@ -150,6 +162,7 @@ row.conversationId
 acc[
 row.conversationId
 ]={
+
 id:
 row.conversationId,
 
@@ -158,6 +171,7 @@ row.content,
 
 createdAt:
 row.createdAt
+
 };
 
 }
@@ -187,7 +201,8 @@ a.createdAt
 );
 
 
-// CURRENT
+
+// CURRENT CHAT
 
 const current=
 selectedConversationId
@@ -196,9 +211,9 @@ selectedConversationId
 
 history.filter(
 
-x=>
+m=>
 
-x.conversationId===
+m.conversationId===
 
 selectedConversationId
 
@@ -210,10 +225,7 @@ selectedConversationId
 
 
 
-// SEND
-
-const explain=
-async()=>{
+async function explain(){
 
 if(
 loading
@@ -222,15 +234,12 @@ loading
 )
 return;
 
-
-// FIX
-
 if(
-!userData?.userId
+!userData
 ){
 
 setStatus(
-"User not loaded"
+"Loading user..."
 );
 
 return;
@@ -238,8 +247,7 @@ return;
 }
 
 setLoading(
-true
-);
+true);
 
 setStatus(
 "Generating..."
@@ -252,6 +260,7 @@ setText("");
 
 let conversationId=
 selectedConversationId;
+
 
 if(
 !conversationId
@@ -290,14 +299,7 @@ userId:
 userData.userId,
 
 email:
-userData
-?.signInDetails
-?.loginId
-
-||
-
-"",
-
+userData.email,
 
 conversationId
 
@@ -308,11 +310,9 @@ conversationId
 );
 
 
-// WAIT
-
 let tries=0;
 
-const poll=
+const timer=
 setInterval(
 
 async()=>{
@@ -361,16 +361,14 @@ users.length
 ){
 
 clearInterval(
-poll
+timer
 );
 
 setLoading(
 false
 );
 
-setStatus(
-""
-);
+setStatus("");
 
 }
 
@@ -380,7 +378,7 @@ tries>
 ){
 
 clearInterval(
-poll
+timer
 );
 
 setLoading(
@@ -416,13 +414,11 @@ setStatus(
 
 }
 
-};
+}
 
 
-// NEW CHAT
 
-const newChat=
-()=>{
+function newChat(){
 
 setSelectedConversationId(
 null
@@ -430,19 +426,18 @@ null
 
 setText("");
 
-};
+}
 
 
-// LOGOUT
 
-const logout=
-()=>{
+function logout(){
 
 localStorage.clear();
 
-location.reload();
+window.location.reload();
 
-};
+}
+
 
 
 return(
@@ -452,9 +447,7 @@ return(
 <div className="sidebar">
 
 <h2>
-
 Conversations
-
 </h2>
 
 <button
@@ -535,6 +528,7 @@ c.createdAt
 </div>
 
 
+
 <div className="chat">
 
 <h1>
@@ -547,17 +541,12 @@ Explain Like I'm 5
 
 {
 
-userData
-?.signInDetails
-?.loginId
-
-||
-
-""
+userData?.email
 
 }
 
 </p>
+
 
 <button
 onClick={
@@ -570,13 +559,14 @@ Sign Out
 </button>
 
 
+
 <div className="messages">
 
 {
 
 current.map(
 
-(msg,i)=>
+(m,i)=>
 
 <div
 
@@ -584,7 +574,7 @@ key={i}
 
 className={
 
-msg.role==="user"
+m.role==="user"
 
 ?
 
@@ -602,7 +592,7 @@ msg.role==="user"
 
 {
 
-msg.role==="user"
+m.role==="user"
 
 ?
 
@@ -618,7 +608,7 @@ msg.role==="user"
 
 <p>
 
-{msg.content}
+{m.content}
 
 </p>
 
@@ -650,8 +640,6 @@ Generating response...
 
 
 
-<div>
-
 <textarea
 
 value={
@@ -666,6 +654,9 @@ e.target.value
 )
 
 }
+
+placeholder=
+"Ask something complicated..."
 
 />
 
@@ -697,8 +688,6 @@ loading
 }
 
 </button>
-
-</div>
 
 
 <p>
