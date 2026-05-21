@@ -413,10 +413,8 @@ function App() {
                     user &&
                     currentUser?.username !== user.username
                 ) {
-
                     resetState();
                     setCurrentUser(user);
-
                 }
 
                 return (
@@ -427,13 +425,16 @@ function App() {
                             width: "100vw",
                             height: "100vh",
 
-                            display: "flex",
+                            display: "grid",
+
+                            gridTemplateColumns:
+                                "320px 1fr",
 
                             background: "#020b24",
 
-                            color: "white",
+                            overflow: "hidden",
 
-                            overflow: "hidden"
+                            color: "white"
 
                         }}
                     >
@@ -443,17 +444,11 @@ function App() {
                         <div
                             style={{
 
-                                width: "320px",
+                                background: "#041238",
 
-                                height: "100%",
-
-                                background: "#031133",
-
-                                padding: "32px",
+                                padding: "28px",
 
                                 overflowY: "auto",
-
-                                boxSizing: "border-box",
 
                                 borderRight:
                                     "1px solid rgba(255,255,255,.08)"
@@ -464,11 +459,9 @@ function App() {
                             <h2
                                 style={{
 
-                                    margin: 0,
+                                    fontSize: "34px",
 
-                                    marginBottom: 30,
-
-                                    fontSize: "44px"
+                                    marginBottom: "24px"
 
                                 }}
                             >
@@ -491,11 +484,11 @@ function App() {
 
                                         style={{
 
-                                            padding: "24px",
+                                            padding: "22px",
+
+                                            marginBottom: "16px",
 
                                             borderRadius: "24px",
-
-                                            marginBottom: "18px",
 
                                             cursor: "pointer",
 
@@ -518,7 +511,7 @@ function App() {
                                         <div
                                             style={{
 
-                                                fontSize: "20px",
+                                                fontSize: "18px",
 
                                                 fontWeight: 700,
 
@@ -528,13 +521,8 @@ function App() {
                                         >
 
                                             {
-
                                                 chat.question
-                                                    ?.slice(
-                                                        0,
-                                                        50
-                                                    )
-
+                                                    ?.slice(0, 40)
                                             }
 
                                         </div>
@@ -554,13 +542,11 @@ function App() {
                         <div
                             style={{
 
-                                flex: 1,
-
-                                height: "100%",
-
                                 display: "flex",
 
-                                flexDirection: "column"
+                                flexDirection: "column",
+
+                                height: "100vh"
 
                             }}
                         >
@@ -587,7 +573,8 @@ function App() {
 
                                         margin: 0,
 
-                                        fontSize: "72px"
+                                        fontSize:
+                                            "clamp(48px,6vw,86px)"
 
                                     }}
                                 >
@@ -599,11 +586,11 @@ function App() {
                                 <div
                                     style={{
 
-                                        marginTop: 12,
+                                        opacity: .65,
 
-                                        fontSize: "18px",
+                                        marginTop: 10,
 
-                                        opacity: .7
+                                        fontSize: "18px"
 
                                     }}
                                 >
@@ -627,27 +614,30 @@ function App() {
 
                                     style={{
 
-                                        position: "fixed",
+                                        position: "absolute",
 
-                                        right: "30px",
+                                        right: 24,
 
-                                        top: "30px",
+                                        top: 24,
 
-                                        padding: "16px 30px",
+                                        padding:
+                                            "14px 24px",
+
+                                        borderRadius:
+                                            20,
 
                                         border: "none",
 
-                                        borderRadius: "22px",
-
-                                        background: "#ff5757",
+                                        background:
+                                            "#ff5757",
 
                                         color: "white",
 
-                                        fontSize: "24px",
+                                        fontSize:
+                                            18,
 
-                                        cursor: "pointer",
-
-                                        zIndex: 20
+                                        cursor:
+                                            "pointer"
 
                                     }}
 
@@ -670,13 +660,13 @@ function App() {
 
                                     overflowY: "auto",
 
-                                    padding: "36px",
+                                    padding:
+                                        "30px",
 
                                     display: "flex",
 
-                                    flexDirection: "column",
-
-                                    alignItems: "center"
+                                    flexDirection:
+                                        "column"
 
                                 }}
                             >
@@ -687,16 +677,13 @@ function App() {
 
                                         <>
 
-                                            {/* USER */}
-
                                             <div
                                                 style={{
 
-                                                    width: "100%",
-
                                                     display: "flex",
 
-                                                    justifyContent: "flex-end"
+                                                    justifyContent:
+                                                        "flex-end"
 
                                                 }}
                                             >
@@ -704,17 +691,17 @@ function App() {
                                                 <div
                                                     style={{
 
-                                                        background: "#3d6ef0",
+                                                        background:
+                                                            "#3b6cf0",
 
-                                                        padding: "28px",
+                                                        padding:
+                                                            "24px",
 
-                                                        borderRadius: "34px",
+                                                        borderRadius:
+                                                            "28px",
 
-                                                        maxWidth: "420px",
-
-                                                        width: "fit-content",
-
-                                                        wordBreak: "break-word"
+                                                        maxWidth:
+                                                            "360px"
 
                                                     }}
                                                 >
@@ -722,9 +709,9 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            opacity: .8,
+                                                            fontWeight: 700,
 
-                                                            fontWeight: 700
+                                                            opacity: .7
 
                                                         }}
                                                     >
@@ -736,9 +723,11 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            fontSize: "22px",
+                                                            marginTop: 8,
 
-                                                            marginTop: "10px"
+                                                            fontSize: 18,
+
+                                                            lineHeight: 1.6
 
                                                         }}
                                                     >
@@ -755,18 +744,16 @@ function App() {
 
 
 
-                                            {/* AI */}
-
                                             <div
                                                 style={{
 
-                                                    marginTop: "40px",
-
-                                                    width: "100%",
-
                                                     display: "flex",
 
-                                                    justifyContent: "center"
+                                                    justifyContent:
+                                                        "center",
+
+                                                    marginTop:
+                                                        30
 
                                                 }}
                                             >
@@ -774,23 +761,25 @@ function App() {
                                                 <div
                                                     style={{
 
-                                                        background: "#223763",
+                                                        background:
+                                                            "#223763",
 
-                                                        padding: "42px",
+                                                        padding:
+                                                            "40px",
 
-                                                        borderRadius: "40px",
+                                                        borderRadius:
+                                                            "36px",
 
-                                                        maxWidth: "900px",
-
-                                                        width: "90%",
-
-                                                        textAlign: "center"
+                                                        width:
+                                                            "min(900px,85%)"
 
                                                     }}
                                                 >
 
                                                     <div
                                                         style={{
+
+                                                            textAlign: "center",
 
                                                             fontWeight: 700,
 
@@ -806,11 +795,13 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            marginTop: "22px",
+                                                            marginTop: 20,
 
-                                                            fontSize: "20px",
+                                                            fontSize: 20,
 
-                                                            lineHeight: 1.8
+                                                            lineHeight: 1.9,
+
+                                                            textAlign: "center"
 
                                                         }}
                                                     >
@@ -840,14 +831,17 @@ function App() {
                             <div
                                 style={{
 
-                                    padding: "28px",
+                                    padding:
+                                        "24px",
 
-                                    display: "grid",
+                                    display:
+                                        "grid",
 
                                     gridTemplateColumns:
-                                        "1fr 220px",
+                                        "1fr 180px",
 
-                                    gap: "20px",
+                                    gap:
+                                        "18px",
 
                                     borderTop:
                                         "1px solid rgba(255,255,255,.08)"
@@ -877,20 +871,18 @@ function App() {
 
                                         width: "100%",
 
-                                        background: "#07152f",
+                                        padding: "24px",
+
+                                        borderRadius: "28px",
+
+                                        background: "#041238",
 
                                         color: "white",
 
-                                        padding: "28px",
-
-                                        fontSize: "20px",
-
-                                        minHeight: "120px",
+                                        fontSize: 18,
 
                                         border:
                                             "1px solid rgba(255,255,255,.08)",
-
-                                        borderRadius: "30px",
 
                                         resize: "none",
 
@@ -899,7 +891,6 @@ function App() {
                                     }}
 
                                 />
-
 
                                 <button
 
@@ -913,19 +904,25 @@ function App() {
 
                                     style={{
 
-                                        background: "#4b82ff",
-
                                         border: "none",
 
-                                        borderRadius: "30px",
+                                        borderRadius:
+                                            28,
 
-                                        color: "white",
+                                        background:
+                                            "#4b82ff",
 
-                                        fontSize: "28px",
+                                        color:
+                                            "white",
 
-                                        fontWeight: 700,
+                                        fontSize:
+                                            24,
 
-                                        cursor: "pointer"
+                                        fontWeight:
+                                            700,
+
+                                        cursor:
+                                            "pointer"
 
                                     }}
 
@@ -937,7 +934,7 @@ function App() {
 
                                             ?
 
-                                            "Thinking..."
+                                            "..."
 
                                             :
 
