@@ -277,6 +277,8 @@ function App() {
 
             setText("");
 
+            const context = selectedChat? [{role:"user", content:selectedChat.question},{role:"assistant",content:selectedChat.answer}]:[];
+
             await fetch(
 
                 `${API}/explain`,
@@ -303,7 +305,9 @@ function App() {
 
                             email,
 
-                            conversationId
+                            conversationId,
+
+                            context
 
                         })
 
