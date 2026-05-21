@@ -1,846 +1,624 @@
 import { useEffect, useState } from "react";
 import { Authenticator } from "@aws-amplify/ui-react";
 
+const API =
+"https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+
 function App() {
 
-  const API_BASE =
-    "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+const [text,setText]=useState("");
 
-  const [text, setText] =
-    useState("");
-
-  const [status, setStatus] =
-    useState("");
+const [loading,setLoading]=
+useState(false);
 
-  const [history, setHistory] =
-    useState([]);
-
-  const [selectedConversationId,
-    setSelectedConversationId] =
-      useState(null);
-
-  const [userData,
-    setUserData] =
-      useState(null);
-
-  // GENERATE UUID
-  const generateConversationId =
-    () => {
-
-      return crypto.randomUUID();
-    };
-
-  // BUILD CONVERSATIONS
-  const buildConversations =
-    (items) => {
-
-      const grouped = {};
+const [chat,setChat]=
+useState(null);
 
-      items.forEach(item => {
-
-        if (
-          !grouped[item.conversationId]
-        ) {
+const [currentUser,
+setCurrentUser]=
+useState(null);
 
-          grouped[item.conversationId] = {
+async function loadHistory(user){
 
-            id:
-              item.conversationId,
+if(!user) return;
 
-            createdAt:
-              item.createdAt,
+try{
 
-            question: "",
+const userId =
+user.userId ||
+user.username ||
+user.attributes?.sub;
 
-            answer:
-              "Generating response..."
-          };
-        }
+const res =
+await fetch(
+`${API}/history?userId=${encodeURIComponent(userId)}`
+);
 
-        if (
-          item.role === "user"
-        ) {
+const data =
+await res.json();
 
-          grouped[
-            item.conversationId
-          ].question =
-            item.content;
-        }
+if(
+!Array.isArray(data)
+||
+data.length===0
+){
 
-        if (
-          item.role ===
-          "assistant"
-        ) {
+setChat(null);
 
-          grouped[
-            item.conversationId
-          ].answer =
-            item.content;
-        }
-      });
+return;
 
-      return Object.values(grouped)
-        .sort(
-          (a, b) =>
-            new Date(
-              b.createdAt
-            ) -
-            new Date(
-              a.createdAt
-            )
-        );
-    };
+}
 
-  // LOAD HISTORY
-  const loadHistory =
-    async (currentUser) => {
+const sorted =
+data.sort(
+(a,b)=>
 
-      try {
+new Date(
+b.createdAt
+)
 
-        const response =
-          await fetch(
-            `${API_BASE}/history?userId=${currentUser.userId}`
-          );
+-
 
-        const data =
-          await response.json();
+new Date(
+a.createdAt
+)
 
-        const safeData =
-          Array.isArray(data)
-            ? data
-            : [];
+);
 
-        const conversations =
-          buildConversations(
-            safeData
-          );
+const userMsg =
+sorted.find(
+x=>
+x.role==="user"
+);
 
-        setHistory(
-          conversations
-        );
+const aiMsg =
+sorted.find(
+x=>
+x.role==="assistant"
+);
 
-        if (
-          conversations.length > 0 &&
-          !selectedConversationId
-        ) {
+setChat({
 
-          setSelectedConversationId(
-            conversations[0].id
-          );
-        }
+question:
+userMsg?.content
+||
+"",
 
-      } catch (error) {
+answer:
+aiMsg?.content
+||
+""
 
-        console.error(error);
-      }
-    };
+});
 
-  // INITIAL LOAD
-  useEffect(() => {
+}
+catch(err){
 
-    if (userData?.userId) {
+console.log(err);
 
-      loadHistory(userData);
-    }
+setChat(null);
 
-  }, [userData]);
+}
 
-  // SELECTED CHAT
-  const selectedChat =
-    history.find(
-      c =>
-        c.id ===
-        selectedConversationId
-    );
+}
 
-  // NEW CHAT
-  const newChat = () => {
+useEffect(()=>{
 
-    setSelectedConversationId(
-      null
-    );
+if(currentUser){
 
-    setText("");
+setChat(null);
 
-    setStatus("");
-  };
+loadHistory(
+currentUser
+);
 
-  // EXPLAIN
-  const explain =
-    async () => {
+}
 
-      if (!text.trim()) return;
+},[
+currentUser
+]);
 
-      const currentText = text;
+async function explain(){
 
-      const conversationId =
-        generateConversationId();
+if(
+!text.trim()
+||
+loading
+||
+!currentUser
+)
+return;
 
-      const optimisticConversation = {
+setLoading(true);
 
-        id:
-          conversationId,
+try{
 
-        question:
-          currentText,
+const userId =
 
-        answer:
-          "Generating response...",
+currentUser.userId
+||
 
-        createdAt:
-          new Date()
-            .toISOString()
-      };
+currentUser.username
+||
 
-      setHistory(prev => [
+currentUser.attributes?.sub;
 
-        optimisticConversation,
+const email =
 
-        ...prev
-      ]);
+currentUser
+.signInDetails
+?.loginId
 
-      setSelectedConversationId(
-        conversationId
-      );
+||
 
-      setText("");
+currentUser
+.attributes
+?.email
 
-      setStatus(
-        "Request queued successfully."
-      );
+||
 
-      try {
+"";
 
-        await fetch(
-          `${API_BASE}/explain`,
-          {
-            method: "POST",
+const question =
+text;
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+setChat({
 
-            body: JSON.stringify({
+question,
 
-              text:
-                currentText,
+answer:
+"Generating..."
 
-              userId:
-                userData.userId,
+});
 
-              email:
-                userData
-                  .signInDetails
-                  .loginId,
+setText("");
 
-              conversationId
-            })
-          }
-        );
+await fetch(
 
-        // POLLING
-        let attempts = 0;
+`${API}/explain`,
 
-        const interval =
-          setInterval(async () => {
+{
 
-            attempts++;
+method:
+"POST",
 
-            try {
+headers:{
 
-              const response =
-                await fetch(
-                  `${API_BASE}/history?userId=${userData.userId}`
-                );
+"Content-Type":
+"application/json"
 
-              const data =
-                await response.json();
+},
 
-              const safeData =
-                Array.isArray(data)
-                  ? data
-                  : [];
+body:
+JSON.stringify({
 
-              const conversations =
-                buildConversations(
-                  safeData
-                );
+text:
+question,
 
-              setHistory(
-                conversations
-              );
+userId,
 
-              const updated =
-                conversations.find(
-                  c =>
-                    c.id ===
-                    conversationId
-                );
+email
 
-              if (
-                updated &&
-                updated.answer !==
-                  "Generating response..."
-              ) {
+})
 
-                setStatus("");
+}
 
-                clearInterval(
-                  interval
-                );
-              }
+);
 
-            } catch (error) {
+let tries=0;
 
-              console.error(error);
-            }
+const poll=
+setInterval(
+async()=>{
 
-            if (
-              attempts >= 20
-            ) {
+tries++;
 
-              clearInterval(
-                interval
-              );
+await loadHistory(
+currentUser
+);
 
-              setStatus("");
-            }
+if(
+tries>20
+){
 
-          }, 2000);
+clearInterval(
+poll
+);
 
-      } catch (error) {
+setLoading(
+false
+);
 
-        console.error(error);
+}
 
-        setStatus(
-          "Something went wrong."
-        );
-      }
-    };
+},
+2000
+);
 
-  return (
+setTimeout(()=>{
 
-    <Authenticator>
+clearInterval(
+poll
+);
 
-      {({ signOut, user }) => {
+setLoading(
+false
+);
 
-        if (
-          user &&
-          !userData
-        ) {
+},45000);
 
-          setUserData(user);
-        }
+}
+catch(err){
 
-        return (
+console.log(err);
 
-          <div
-            style={{
+setLoading(
+false
+);
 
-              display: "flex",
+}
 
-              height: "100vh",
+}
 
-              background:
-                "#020b24",
+return(
 
-              color: "white",
+<Authenticator>
 
-              fontFamily:
-                "Arial"
-            }}
-          >
+{({
+user,
+signOut
+})=>{
 
-            {/* SIDEBAR */}
-            <div
-              style={{
+if(
+user
+&&
+currentUser
+?.username
+!==user.username
+){
 
-                width: 320,
+setCurrentUser(
+user
+);
 
-                background:
-                  "#031133",
+}
 
-                borderRight:
-                  "1px solid rgba(255,255,255,0.08)",
+return(
 
-                padding: 20,
+<div
+style={{
 
-                overflowY: "auto"
-              }}
-            >
+background:
+"#020b24",
 
-              <h2
-                style={{
-                  textAlign: "center"
-                }}
-              >
-                Conversations
-              </h2>
+height:
+"100vh",
 
-              <button
+color:
+"white",
 
-                onClick={newChat}
+display:
+"flex",
 
-                style={{
+flexDirection:
+"column"
 
-                  width: "100%",
+}}
+>
 
-                  padding: 18,
+<div
+style={{
 
-                  borderRadius: 18,
+padding:40,
 
-                  border: "none",
+textAlign:
+"center"
 
-                  background:
-                    "#3067e8",
+}}
+>
 
-                  color: "white",
+<h1
+style={{
 
-                  fontWeight:
-                    "bold",
+fontSize:72
 
-                  fontSize: 20,
+}}
+>
 
-                  marginTop: 20,
+Explain Like I'm 5
 
-                  marginBottom: 30,
+</h1>
 
-                  cursor: "pointer"
-                }}
-              >
-                + New Chat
-              </button>
+<div>
 
-              {history.map(
-                (chat, index) => (
+{
+user
+?.signInDetails
+?.loginId
 
-                  <div
+||
 
-                    key={index}
+user
+?.attributes
+?.email
 
-                    onClick={() =>
-                      setSelectedConversationId(
-                        chat.id
-                      )
-                    }
+}
 
-                    style={{
+</div>
 
-                      padding: 20,
+<button
 
-                      borderRadius: 20,
+style={{
 
-                      marginBottom: 18,
+marginTop:20,
 
-                      cursor: "pointer",
+padding:
+"15px 30px",
 
-                      background:
-                        selectedConversationId ===
-                        chat.id
-                          ? "#1c2b4a"
-                          : "transparent",
+background:
+"#ff4f4f",
 
-                      border:
-                        "1px solid rgba(255,255,255,0.08)"
-                    }}
-                  >
+border:
+"none",
 
-                    <div
-                      style={{
+color:
+"white",
 
-                        fontWeight:
-                          "bold",
+borderRadius:
+20
 
-                        marginBottom: 10,
+}}
 
-                        fontSize: 17
-                      }}
-                    >
-                      {
-                        chat.question
-                          ?.length > 40
-                          ? chat.question.slice(
-                              0,
-                              40
-                            ) + "..."
-                          : chat.question
-                      }
-                    </div>
+onClick={()=>{
 
-                    <div
-                      style={{
+setChat(
+null
+);
 
-                        fontSize: 12,
+setText(
+""
+);
 
-                        opacity: 0.6
-                      }}
-                    >
-                      {new Date(
-                        chat.createdAt
-                      ).toLocaleString()}
-                    </div>
+setCurrentUser(
+null
+);
 
-                  </div>
-                )
-              )}
+signOut();
 
-            </div>
+}}
 
-            {/* MAIN */}
-            <div
-              style={{
+>
 
-                flex: 1,
+Sign Out
 
-                display: "flex",
+</button>
 
-                flexDirection:
-                  "column"
-              }}
-            >
+</div>
 
-              <div
-                style={{
+<div
+style={{
 
-                  padding: 30,
+flex:1,
 
-                  display: "flex",
+padding:40,
 
-                  justifyContent:
-                    "space-between",
+overflow:
+"auto"
 
-                  alignItems:
-                    "center",
+}}
+>
 
-                  borderBottom:
-                    "1px solid rgba(255,255,255,0.08)"
-                }}
-              >
+{chat && (
 
-                <div>
+<>
 
-                  <h1
-                    style={{
-                      margin: 0,
-                      fontSize: 72
-                    }}
-                  >
-                    Explain Like I'm 5
-                  </h1>
+<div
+style={{
 
-                  <p
-                    style={{
-                      opacity: 0.6
-                    }}
-                  >
-                    {
-                      user
-                        ?.signInDetails
-                        ?.loginId
-                    }
-                  </p>
+display:
+"flex",
 
-                </div>
+justifyContent:
+"flex-end"
 
-                <button
+}}
+>
 
-                  onClick={signOut}
+<div
+style={{
 
-                  style={{
+background:
+"#3067e8",
 
-                    background:
-                      "#ff4f4f",
+padding:25,
 
-                    border: "none",
+borderRadius:
+25,
 
-                    color: "white",
+maxWidth:
+500
 
-                    padding:
-                      "18px 28px",
+}}
+>
 
-                    borderRadius: 20,
+<b>You</b>
 
-                    fontSize: 18,
+<div>
 
-                    fontWeight:
-                      "bold",
+{
+chat.question
+}
 
-                    cursor: "pointer"
-                  }}
-                >
-                  Sign Out
-                </button>
+</div>
 
-              </div>
+</div>
 
-              {/* CHAT AREA */}
-              <div
-                style={{
+</div>
 
-                  flex: 1,
+<div
+style={{
 
-                  overflowY: "auto",
+marginTop:40,
 
-                  padding: 40
-                }}
-              >
+display:
+"flex"
 
-                {!selectedChat ? (
+}}
+>
 
-                  <div
-                    style={{
+<div
+style={{
 
-                      textAlign:
-                        "center",
+background:
+"#1c2b4a",
 
-                      marginTop: 200,
+padding:35,
 
-                      opacity: 0.6
-                    }}
-                  >
+borderRadius:
+25,
 
-                    <h2>
-                      Ask anything
-                    </h2>
+maxWidth:
+700,
 
-                    <p>
-                      Your simplified explanations
-                      will appear here.
-                    </p>
+lineHeight:
+1.8
 
-                  </div>
+}}
+>
 
-                ) : (
+<b>ELI5 AI</b>
 
-                  <>
-                    {/* USER */}
-                    <div
-                      style={{
+<div>
 
-                        display: "flex",
+{
+chat.answer
+}
 
-                        justifyContent:
-                          "flex-end",
+</div>
 
-                        marginBottom: 40
-                      }}
-                    >
+</div>
 
-                      <div
-                        style={{
+</div>
 
-                          background:
-                            "#3067e8",
+</>
 
-                          padding: 24,
+)}
 
-                          borderRadius: 30,
+</div>
 
-                          maxWidth: "45%"
-                        }}
-                      >
+<div
+style={{
 
-                        <div
-                          style={{
+display:
+"flex",
 
-                            fontSize: 13,
+padding:30,
 
-                            opacity: 0.7,
+gap:20
 
-                            marginBottom: 10,
+}}
+>
 
-                            fontWeight:
-                              "bold"
-                          }}
-                        >
-                          You
-                        </div>
+<textarea
 
-                        <div
-                          style={{
-                            fontSize: 22,
-                            lineHeight: 1.7
-                          }}
-                        >
-                          {
-                            selectedChat.question
-                          }
-                        </div>
+value={text}
 
-                      </div>
+onChange={(e)=>
 
-                    </div>
+setText(
+e.target.value
+)
 
-                    {/* AI */}
-                    <div
-                      style={{
+}
 
-                        display: "flex",
+rows={3}
 
-                        justifyContent:
-                          "flex-start"
-                      }}
-                    >
+style={{
 
-                      <div
-                        style={{
+flex:1,
 
-                          background:
-                            "#1c2b4a",
+background:
+"transparent",
 
-                          padding: 34,
+border:
+"1px solid #333",
 
-                          borderRadius: 30,
+color:
+"white",
 
-                          maxWidth: "75%",
+padding:20,
 
-                          fontSize: 22,
+borderRadius:
+20
 
-                          lineHeight: 1.9,
+}}
 
-                          whiteSpace:
-                            "pre-wrap"
-                        }}
-                      >
+placeholder=
+"Ask something..."
 
-                        <div
-                          style={{
+/>
 
-                            fontSize: 13,
+<button
 
-                            opacity: 0.7,
+onClick={
+explain
+}
 
-                            marginBottom: 18,
+disabled={
+loading
+}
 
-                            fontWeight:
-                              "bold"
-                          }}
-                        >
-                          ELI5 AI
-                        </div>
+style={{
 
-                        {
-                          selectedChat.answer
-                        }
+width:220,
 
-                      </div>
+background:
+"#4285f4",
 
-                    </div>
-                  </>
-                )}
+border:
+"none",
 
-              </div>
+color:
+"white",
 
-              {/* INPUT */}
-              <div
-                style={{
+borderRadius:
+20,
 
-                  padding: 25,
+fontSize:
+24
 
-                  borderTop:
-                    "1px solid rgba(255,255,255,0.08)",
+}}
 
-                  display: "flex",
+>
 
-                  gap: 20
-                }}
-              >
+{
 
-                <textarea
+loading
 
-                  rows={2}
+?
 
-                  value={text}
+"Thinking..."
 
-                  onChange={(e) =>
-                    setText(
-                      e.target.value
-                    )
-                  }
+:
 
-                  placeholder="Ask something complicated..."
+"Explain"
 
-                  style={{
+}
 
-                    flex: 1,
+</button>
 
-                    background:
-                      "transparent",
+</div>
 
-                    border:
-                      "1px solid rgba(255,255,255,0.12)",
+</div>
 
-                    borderRadius: 22,
+);
 
-                    color: "white",
+}}
 
-                    padding: 24,
+</Authenticator>
 
-                    fontSize: 20,
+);
 
-                    resize: "none",
-
-                    outline: "none"
-                  }}
-                />
-
-                <button
-
-                  onClick={explain}
-
-                  style={{
-
-                    background:
-                      "#4285f4",
-
-                    border: "none",
-
-                    color: "white",
-
-                    padding:
-                      "0 40px",
-
-                    borderRadius: 22,
-
-                    fontWeight:
-                      "bold",
-
-                    fontSize: 24,
-
-                    cursor: "pointer"
-                  }}
-                >
-                  Explain
-                </button>
-
-              </div>
-
-              {status && (
-
-                <div
-                  style={{
-
-                    textAlign:
-                      "center",
-
-                    paddingBottom: 18,
-
-                    opacity: 0.7
-                  }}
-                >
-                  {status}
-                </div>
-              )}
-
-            </div>
-
-          </div>
-        );
-      }}
-
-    </Authenticator>
-  );
 }
 
 export default App;
