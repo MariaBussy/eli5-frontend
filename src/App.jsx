@@ -1,72 +1,119 @@
 import { useEffect, useMemo, useState } from "react";
-import { Authenticator } from "@aws-amplify/ui-react";
+import { Authenticator, useAuthenticator } from "@aws-amplify/ui-react";
 
-function App() {
-
-const API_BASE =
+const API =
 "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
-const [text,setText]=useState("");
+function ChatApp() {
 
-const [status,setStatus]=useState("");
+const {
+user,
+signOut
+}=useAuthenticator();
 
-const [history,setHistory]=useState([]);
+const [userData,setUserData]=
+useState(null);
+
+const [history,setHistory]=
+useState([]);
 
 const [
 selectedConversationId,
 setSelectedConversationId
 ]=useState(null);
 
-const [
-userData,
-setUserData
-]=useState(null);
+const [text,setText]=
+useState("");
 
-const [
-loading,
-setLoading
-]=useState(false);
+const [loading,setLoading]=
+useState(false);
 
+const [status,setStatus]=
+useState("");
 
 
-function generateConversationId(){
 
-return crypto.randomUUID();
+// AUTH
+
+useEffect(()=>{
+
+if(user){
+
+setUserData({
+
+userId:
+user.userId,
+
+email:
+user.signInDetails
+?.loginId
+
+});
 
 }
 
+},[
+user
+]);
 
 
-// ---------- BUILD ----------
 
-function buildConversations(items){
+// HISTORY
+
+useEffect(()=>{
+
+if(
+userData?.userId
+){
+
+loadHistory();
+
+}
+
+},[
+userData
+]);
+
+
+
+async function loadHistory(){
+
+try{
+
+const res=
+
+await fetch(
+
+`${API}/history?userId=${userData.userId}`
+
+);
+
+const rows=
+await res.json();
 
 const grouped={};
 
-items.forEach(item=>{
+(rows||[])
 
-if(!item.conversationId)
-return;
+.forEach(m=>{
 
 if(
 !grouped[
-item.conversationId
+m.conversationId
 ]
 ){
 
 grouped[
-item.conversationId
+m.conversationId
 ]={
 
 id:
-item.conversationId,
+m.conversationId,
 
 createdAt:
-item.createdAt,
+m.createdAt,
 
-question:
-"",
-
+question:"",
 answer:
 "Generating response..."
 
@@ -75,31 +122,35 @@ answer:
 }
 
 if(
-item.role==="user"
+m.role==="user"
 ){
 
 grouped[
-item.conversationId
+m.conversationId
 ].question=
-item.content;
+m.content;
 
 }
 
 if(
-item.role==="assistant"
+m.role==="assistant"
 ){
 
 grouped[
-item.conversationId
+m.conversationId
 ].answer=
-item.content;
+m.content;
 
 }
 
 });
 
-return Object
-.values(grouped)
+const built=
+
+Object
+.values(
+grouped
+)
 .sort(
 
 (a,b)=>
@@ -116,54 +167,8 @@ a.createdAt
 
 );
 
-}
-
-
-
-// ---------- LOAD ----------
-
-async function loadHistory(currentUser){
-
-if(
-!currentUser?.userId
-)
-return;
-
-try{
-
-const res=
-
-await fetch(
-
-`${API_BASE}/history?userId=${currentUser.userId}`
-
-);
-
-const rows=
-await res.json();
-
-const safe=
-
-Array.isArray(
-rows
-)
-
-?
-
-rows
-
-:
-
-[];
-
-const conversations=
-
-buildConversations(
-safe
-);
-
 setHistory(
-conversations
+built
 );
 
 }
@@ -179,25 +184,7 @@ err
 
 
 
-useEffect(()=>{
-
-if(
-userData
-){
-
-loadHistory(
-userData
-);
-
-}
-
-},[
-userData
-]);
-
-
-
-// ---------- SEND ----------
+// SEND
 
 async function explain(){
 
@@ -219,26 +206,27 @@ text;
 
 setText("");
 
-let conversationId=
+let cid=
 selectedConversationId;
 
 if(
-!conversationId
+!cid
 ){
 
-conversationId=
-generateConversationId();
+cid=
+crypto.randomUUID();
 
 setSelectedConversationId(
-conversationId
+cid
 );
 
 }
 
-const optimistic={
+setHistory(prev=>[
 
-id:
-conversationId,
+{
+
+id:cid,
 
 question,
 
@@ -249,42 +237,17 @@ createdAt:
 new Date()
 .toISOString()
 
-};
-
-setHistory(prev=>{
-
-const exists=
-
-prev.some(
-
-x=>
-
-x.id===
-
-conversationId
-
-);
-
-if(
-exists
-)
-return prev;
-
-return [
-
-optimistic,
+},
 
 ...prev
 
-];
-
-});
+]);
 
 try{
 
 await fetch(
 
-`${API_BASE}/explain`,
+`${API}/explain`,
 
 {
 
@@ -308,11 +271,10 @@ userId:
 userData.userId,
 
 email:
-userData
-.signInDetails
-?.loginId,
+userData.email,
 
-conversationId
+conversationId:
+cid
 
 })
 
@@ -321,15 +283,11 @@ conversationId
 );
 
 poll(
-conversationId
+cid
 );
 
 }
 catch{
-
-setStatus(
-"Request failed"
-);
 
 setLoading(
 false
@@ -341,11 +299,11 @@ false
 
 
 
-function poll(conversationId){
+function poll(cid){
 
 let tries=0;
 
-const interval=
+const timer=
 
 setInterval(
 
@@ -353,36 +311,15 @@ async()=>{
 
 tries++;
 
-await loadHistory(
-userData
-);
-
-const res=
-
-await fetch(
-
-`${API_BASE}/history?userId=${userData.userId}`
-
-);
-
-const rows=
-await res.json();
-
-const conversations=
-
-buildConversations(
-rows
-);
+await loadHistory();
 
 const current=
 
-conversations.find(
+history.find(
 
-c=>
+x=>
 
-c.id===
-
-conversationId
+x.id===cid
 
 );
 
@@ -401,14 +338,12 @@ current.answer
 ){
 
 clearInterval(
-interval
+timer
 );
 
 setLoading(
 false
 );
-
-setStatus("");
 
 }
 
@@ -417,7 +352,7 @@ tries>20
 ){
 
 clearInterval(
-interval
+timer
 );
 
 setLoading(
@@ -436,25 +371,7 @@ false
 
 
 
-// ---------- USER ----------
-
-useEffect(()=>{
-
-if(
-window.__cachedUser
-){
-
-setUserData(
-window.__cachedUser
-);
-
-}
-
-},[]);
-
-
-
-const selectedChat=
+const selected=
 
 useMemo(
 
@@ -462,9 +379,9 @@ useMemo(
 
 history.find(
 
-c=>
+x=>
 
-c.id===
+x.id===
 
 selectedConversationId
 
@@ -481,53 +398,16 @@ selectedConversationId
 
 return(
 
-<Authenticator>
-
-{({
-
-user,
-
-signOut
-
-})=>{
-
-useEffect(()=>{
-
-if(
-user
-){
-
-window.__cachedUser=
-user;
-
-setUserData(
-user
-);
-
-}
-
-},[
-user
-]);
-
-
-
-return(
-
 <div
 style={{
 
-display:
-"flex",
+display:"flex",
 
-height:
-"100vh",
+height:"100vh",
 
-background:
-"#020b24",
+background:"#020b24",
 
-color:
-"white"
+color:"white"
 
 }}
 
@@ -536,14 +416,9 @@ color:
 <div
 style={{
 
-width:
-320,
+width:320,
 
-padding:
-20,
-
-background:
-"#031133"
+padding:20
 
 }}
 
@@ -571,69 +446,33 @@ null
 
 </button>
 
-
 {
 
 history.map(
 
-chat=>
+c=>
 
 <div
 
 key={
-chat.id
+c.id
 }
 
 onClick={()=>
 
 setSelectedConversationId(
-chat.id
+c.id
 )
 
 }
 
-style={{
-
-padding:
-20,
-
-cursor:
-"pointer",
-
-marginTop:
-20,
-
-background:
-
-selectedConversationId===
-
-chat.id
-
-?
-
-"#1c2b4a"
-
-:
-
-"transparent"
-
-}}
-
 >
 
-<div>
+<h3>
 
-{
+{c.question}
 
-chat.question
-
-||
-
-"Untitled"
-
-}
-
-</div>
+</h3>
 
 </div>
 
@@ -650,21 +489,9 @@ style={{
 
 flex:1,
 
-display:
-"flex",
+display:"flex",
 
-flexDirection:
-"column"
-
-}}
-
->
-
-<div
-style={{
-
-padding:
-30
+flexDirection:"column"
 
 }}
 
@@ -680,13 +507,7 @@ Explain Like I'm 5
 
 {
 
-user
-?.signInDetails
-?.loginId
-
-||
-
-"Loading"
+userData?.email
 
 }
 
@@ -695,18 +516,7 @@ user
 <button
 
 onClick={
-
-async()=>{
-
-await signOut();
-
-window.__cachedUser=
-null;
-
-location.reload();
-
-}
-
+signOut
 }
 
 >
@@ -715,16 +525,12 @@ Sign Out
 
 </button>
 
-</div>
-
 
 
 <div
 style={{
 
-flex:1,
-
-padding:40
+flex:1
 
 }}
 
@@ -732,53 +538,29 @@ padding:40
 
 {
 
-selectedChat
+selected
 
 &&
 
 <>
 
-<div>
-
-<b>
-
-You
-
-</b>
-
 <p>
 
+You:
 {
-
-selectedChat.question
-
+selected.question
 }
 
 </p>
 
-</div>
-
-<br/>
-
-<div>
-
-<b>
-
-ELI5 AI
-
-</b>
-
 <p>
 
+ELI5:
 {
-
-selectedChat.answer
-
+selected.answer
 }
 
 </p>
-
-</div>
 
 </>
 
@@ -788,18 +570,7 @@ selectedChat.answer
 
 
 
-<div
-style={{
-
-padding:20,
-
-display:"flex",
-
-gap:20
-
-}}
-
->
+<div>
 
 <textarea
 
@@ -849,22 +620,26 @@ loading
 
 </div>
 
-
-
-{status}
-
 </div>
 
 </div>
 
 );
 
-}}
+}
+
+
+
+export default function App(){
+
+return(
+
+<Authenticator>
+
+<ChatApp/>
 
 </Authenticator>
 
 );
 
 }
-
-export default App;
