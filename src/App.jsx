@@ -2,792 +2,977 @@ import { useEffect, useState } from "react";
 import { Authenticator } from "@aws-amplify/ui-react";
 
 const API =
-"https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
+    "https://tpocns7qc7.execute-api.us-east-1.amazonaws.com/prod";
 
 function App() {
 
-const [text,setText]=
-useState("");
+    const [text, setText] =
+        useState("");
 
-const [loading,setLoading]=
-useState(false);
+    const [loading, setLoading] =
+        useState(false);
 
-const [history,setHistory]=
-useState([]);
+    const [history, setHistory] =
+        useState([]);
 
-const [selectedChat,
-setSelectedChat]=
-useState(null);
+    const [selectedChat,
+        setSelectedChat] =
+        useState(null);
 
-const [currentUser,
-setCurrentUser]=
-useState(null);
+    const [currentUser,
+        setCurrentUser] =
+        useState(null);
 
 
-// ---------- RESET ----------
+    // ---------- RESET ----------
 
-function resetState(){
+    function resetState() {
 
-setText("");
+        setText("");
 
-setLoading(false);
+        setLoading(false);
 
-setHistory([]);
+        setHistory([]);
 
-setSelectedChat(null);
+        setSelectedChat(null);
 
-setCurrentUser(null);
+        setCurrentUser(null);
 
-}
+    }
 
 
 
-// ---------- LOAD ----------
+    // ---------- LOAD ----------
 
-async function loadHistory(user){
+    async function loadHistory(user) {
 
-if(!user)
-return;
+        if (!user)
+            return;
 
-try{
+        try {
 
-const userId =
+            const userId =
 
-user.userId
-||
-user.username
-||
-user.attributes?.sub;
+                user.userId
+                ||
+                user.username
+                ||
+                user.attributes?.sub;
 
-const res =
-await fetch(
+            const res =
+                await fetch(
 
-`${API}/history?userId=${encodeURIComponent(userId)}`
+                    `${API}/history?userId=${encodeURIComponent(userId)}`
 
-);
+                );
 
-const data =
-await res.json();
+            const data =
+                await res.json();
 
-if(
-!Array.isArray(data)
-){
+            if (
+                !Array.isArray(data)
+            ) {
 
-setHistory([]);
+                setHistory([]);
 
-return;
+                return;
 
-}
+            }
 
-const grouped={};
+            const grouped = {};
 
-data.forEach(item=>{
+            data.forEach(item => {
 
-const id =
+                const id =
 
-item.conversationId
-||
-"single";
+                    item.conversationId
+                    ||
+                    "single";
 
-if(
-!grouped[id]
-){
+                if (
+                    !grouped[id]
+                ) {
 
-grouped[id]={
+                    grouped[id] = {
 
-id,
+                        id,
 
-createdAt:
-item.createdAt,
+                        createdAt:
+                            item.createdAt,
 
-question:"",
+                        question: "",
 
-answer:""
+                        answer: ""
 
-};
+                    };
 
-}
+                }
 
-if(
-item.role==="user"
-){
+                if (
+                    item.role === "user"
+                ) {
 
-grouped[id].question=
-item.content;
+                    grouped[id].question =
+                        item.content;
 
-}
+                }
 
-if(
-item.role==="assistant"
-){
+                if (
+                    item.role === "assistant"
+                ) {
 
-grouped[id].answer=
-item.content;
+                    grouped[id].answer =
+                        item.content;
 
-}
+                }
 
-});
+            });
 
-const conversations =
+            const conversations =
 
-Object
-.values(grouped)
+                Object
+                    .values(grouped)
 
-.sort(
+                    .sort(
 
-(a,b)=>
+                        (a, b) =>
 
-new Date(
-b.createdAt
-)
+                            new Date(
+                                b.createdAt
+                            )
 
--
+                            -
 
-new Date(
-a.createdAt
-)
+                            new Date(
+                                a.createdAt
+                            )
 
-);
+                    );
 
-setHistory(
-conversations
-);
+            setHistory(
+                conversations
+            );
 
-setSelectedChat(
-conversations[0]
-||
-null
-);
+            setSelectedChat(
+                conversations[0]
+                ||
+                null
+            );
 
-}
-catch(err){
+        }
+        catch (err) {
 
-console.log(err);
+            console.log(err);
 
-}
+        }
 
-}
+    }
 
 
 
-// ---------- USER ----------
+    // ---------- USER ----------
 
-useEffect(()=>{
+    useEffect(() => {
 
-if(
-currentUser
-){
+        if (
+            currentUser
+        ) {
 
-setHistory([]);
+            setHistory([]);
 
-setSelectedChat(
-null
-);
+            setSelectedChat(
+                null
+            );
 
-loadHistory(
-currentUser
-);
+            loadHistory(
+                currentUser
+            );
 
-}
+        }
 
-},[
-currentUser
-]);
+    }, [
+        currentUser
+    ]);
 
 
 
-// ---------- SEND ----------
+    // ---------- SEND ----------
 
-async function explain(){
+    async function explain() {
 
-if(
-loading
-||
-!text.trim()
-||
-!currentUser
-)
-return;
+        if (
+            loading
+            ||
+            !text.trim()
+            ||
+            !currentUser
+        )
+            return;
 
-setLoading(
-true
-);
+        setLoading(
+            true
+        );
 
-try{
+        try {
 
-const userId =
+            const userId =
 
-currentUser.userId
-||
+                currentUser.userId
+                ||
 
-currentUser.username
-||
+                currentUser.username
+                ||
 
-currentUser.attributes?.sub;
+                currentUser.attributes?.sub;
 
-const email =
+            const email =
 
-currentUser
-.signInDetails
-?.loginId
+                currentUser
+                    .signInDetails
+                    ?.loginId
 
-||
+                ||
 
-currentUser
-.attributes
-?.email
+                currentUser
+                    .attributes
+                    ?.email
 
-||
+                ||
 
-"";
+                "";
 
-const question =
-text.trim();
+            const question =
+                text.trim();
 
-const conversationId =
-crypto.randomUUID();
+            const conversationId =
+                crypto.randomUUID();
 
-const temp={
+            const temp = {
 
-id:
-conversationId,
+                id:
+                    conversationId,
 
-createdAt:
-new Date()
-.toISOString(),
+                createdAt:
+                    new Date()
+                        .toISOString(),
 
-question,
+                question,
 
-answer:
-"Generating..."
+                answer:
+                    "Generating..."
 
-};
+            };
 
-setHistory(
-prev=>
-[
-temp,
-...prev
-]
-);
+            setHistory(
+                prev =>
+                    [
+                        temp,
+                        ...prev
+                    ]
+            );
 
-setSelectedChat(
-temp
-);
+            setSelectedChat(
+                temp
+            );
 
-setText("");
+            setText("");
 
-await fetch(
+            await fetch(
 
-`${API}/explain`,
+                `${API}/explain`,
 
-{
+                {
 
-method:
-"POST",
+                    method:
+                        "POST",
 
-headers:{
+                    headers: {
 
-"Content-Type":
-"application/json"
+                        "Content-Type":
+                            "application/json"
 
-},
+                    },
 
-body:
-JSON.stringify({
+                    body:
+                        JSON.stringify({
 
-text:
-question,
+                            text:
+                                question,
 
-userId,
+                            userId,
 
-email,
+                            email,
 
-conversationId
+                            conversationId
 
-})
+                        })
 
-}
+                }
 
-);
+            );
 
-let tries=0;
+            let tries = 0;
 
-const poll =
-setInterval(
+            const poll =
+                setInterval(
 
-async()=>{
+                    async () => {
 
-tries++;
+                        tries++;
 
-await loadHistory(
-currentUser
-);
+                        await loadHistory(
+                            currentUser
+                        );
 
-if(
-tries>20
-){
+                        if (
+                            tries > 20
+                        ) {
 
-clearInterval(
-poll);
+                            clearInterval(
+                                poll);
 
-setLoading(
-false
-);
+                            setLoading(
+                                false
+                            );
 
-}
+                        }
 
-},
+                    },
 
-2000
+                    2000
 
-);
+                );
 
-setTimeout(()=>{
+            setTimeout(() => {
 
-clearInterval(
-poll);
+                clearInterval(
+                    poll);
 
-setLoading(
-false
-);
+                setLoading(
+                    false
+                );
 
-},45000);
+            }, 45000);
 
-}
-catch(err){
+        }
+        catch (err) {
 
-console.log(
-err
-);
+            console.log(
+                err
+            );
 
-setLoading(
-false
-);
+            setLoading(
+                false
+            );
 
-}
+        }
 
-}
+    }
 
 
 
-// ---------- LOGOUT ----------
+    // ---------- LOGOUT ----------
 
-async function logout(signOut){
+    async function logout(signOut) {
 
-try{
+        try {
 
-resetState();
+            resetState();
 
-localStorage.clear();
+            localStorage.clear();
 
-sessionStorage.clear();
+            sessionStorage.clear();
 
-await signOut();
+            await signOut();
 
-window.location.replace(
-"/"
-);
+            window.location.replace(
+                "/"
+            );
 
-}
-catch(err){
+        }
+        catch (err) {
 
-console.log(err);
+            console.log(err);
 
-}
+        }
 
-}
+    }
 
 
 
-return(
+    return (
 
-<Authenticator>
+        <Authenticator>
 
-{({
-user,
-signOut
-})=>{
+            {({
+                user,
+                signOut
+            }) => {
 
-if(
-user
-&&
-currentUser
-?.username
-!==user.username
-){
+                if (
+                    user &&
+                    currentUser?.username !== user.username
+                ) {
 
-resetState();
+                    resetState();
+                    setCurrentUser(user);
 
-setCurrentUser(
-user
-);
+                }
 
-}
+                return (
 
-return(
+                    <div
+                        style={{
 
-<div
-style={{
+                            width: "100vw",
+                            height: "100vh",
 
-display:"flex",
+                            display: "flex",
 
-height:"100vh",
+                            background: "#020b24",
 
-background:"#020b24",
+                            color: "white",
 
-color:"white"
+                            overflow: "hidden"
 
-}}
->
+                        }}
+                    >
 
-{/* SIDEBAR */}
+                        {/* SIDEBAR */}
 
-<div
-style={{
+                        <div
+                            style={{
 
-width:320,
+                                width: "360px",
 
-background:"#031133",
+                                height: "100%",
 
-padding:24,
+                                background: "#031133",
 
-overflowY:"auto"
+                                padding: "28px",
 
-}}
->
+                                overflowY: "auto",
 
-<h2>
+                                borderRight:
+                                    "1px solid rgba(255,255,255,.08)",
 
-Conversations
+                                boxSizing:
+                                    "border-box"
 
-</h2>
+                            }}
+                        >
 
-{
+                            <h2
+                                style={{
+                                    marginBottom: 30,
+                                    fontSize: 54
+                                }}
+                            >
 
-history.map((chat)=>(
+                                Conversations
 
-<div
+                            </h2>
 
-key={chat.id}
+                            {
 
-onClick={()=>
-setSelectedChat(chat)
-}
+                                history.map(chat => (
 
-style={{
+                                    <div
 
-padding:18,
+                                        key={chat.id}
 
-cursor:"pointer",
+                                        onClick={() =>
+                                            setSelectedChat(chat)
+                                        }
 
-marginBottom:12,
+                                        style={{
 
-borderRadius:18,
+                                            padding: 24,
 
-background:
+                                            cursor: "pointer",
 
-selectedChat?.id===chat.id
+                                            marginBottom: 16,
 
-?
+                                            borderRadius: 22,
 
-"#1c2b4a"
+                                            background:
 
-:
+                                                selectedChat?.id === chat.id
 
-"transparent"
+                                                    ?
 
-}}
+                                                    "#1f315a"
 
->
+                                                    :
 
-<div>
+                                                    "#14244a",
 
-{
+                                            transition:
+                                                ".2s"
 
-chat.question
+                                        }}
 
-?.slice(
-0,
-35
-)
+                                    >
 
-}
+                                        <div
+                                            style={{
 
-</div>
+                                                fontSize: 26,
 
-</div>
+                                                fontWeight: 700
 
-))
+                                            }}
+                                        >
 
-}
+                                            {
 
-</div>
+                                                chat.question
+                                                    ?.slice(0, 35)
 
+                                            }
 
+                                        </div>
 
-{/* MAIN */}
+                                    </div>
 
-<div
-style={{
+                                ))
 
-flex:1,
+                            }
 
-display:"flex",
+                        </div>
 
-flexDirection:"column"
 
-}}
->
 
-<div
-style={{
+                        {/* MAIN */}
 
-padding:30,
+                        <div
+                            style={{
 
-textAlign:"center"
+                                flex: 1,
 
-}}
->
+                                height: "100%",
 
-<h1>
+                                display: "flex",
 
-Explain Like I'm 5
+                                flexDirection: "column"
 
-</h1>
+                            }}
+                        >
 
-<div>
+                            {/* HEADER */}
 
-{
-user
-?.signInDetails
-?.loginId
-}
+                            <div
+                                style={{
 
-</div>
+                                    padding: "40px",
 
-<button
+                                    textAlign: "center",
 
-onClick={()=>
-logout(
-signOut
-)
-}
+                                    borderBottom:
+                                        "1px solid rgba(255,255,255,.08)"
 
-style={{
+                                }}
+                            >
 
-marginTop:20,
+                                <h1
+                                    style={{
 
-padding:"15px 25px",
+                                        fontSize: 96,
 
-background:"#ff4f4f",
+                                        margin: 0
 
-border:"none",
+                                    }}
+                                >
 
-borderRadius:20,
+                                    Explain Like I'm 5
 
-color:"white"
+                                </h1>
 
-}}
+                                <div
+                                    style={{
 
->
+                                        marginTop: 10,
 
-Sign Out
+                                        fontSize: 24,
 
-</button>
+                                        opacity: .7
 
-</div>
+                                    }}
+                                >
 
+                                    {
+                                        user
+                                            ?.signInDetails
+                                            ?.loginId
+                                    }
 
+                                </div>
 
-<div
-style={{
+                                <button
 
-flex:1,
+                                    onClick={() =>
+                                        logout(
+                                            signOut
+                                        )
+                                    }
 
-padding:40
+                                    style={{
 
-}}
->
+                                        position:
+                                            "absolute",
 
-{
+                                        right: 40,
 
-selectedChat
+                                        top: 40,
 
-&&
+                                        padding:
+                                            "18px 32px",
 
-<>
+                                        border: "none",
 
-<div
-style={{
+                                        borderRadius:
+                                            24,
 
-display:"flex",
+                                        background:
+                                            "#ff5454",
 
-justifyContent:"flex-end"
+                                        color:
+                                            "white",
 
-}}
->
+                                        fontSize:
+                                            24,
 
-<div
-style={{
+                                        cursor:
+                                            "pointer"
 
-background:"#3067e8",
+                                    }}
 
-padding:24,
+                                >
 
-borderRadius:20
+                                    Sign Out
 
-}}
->
+                                </button>
 
-<b>
+                            </div>
 
-You
 
-</b>
 
-<div>
+                            {/* CHAT */}
 
-{
-selectedChat.question
-}
+                            <div
+                                style={{
 
-</div>
+                                    flex: 1,
 
-</div>
+                                    overflowY: "auto",
 
-</div>
+                                    padding: "40px",
 
+                                    display: "flex",
 
+                                    flexDirection: "column"
 
-<div
-style={{
+                                }}
+                            >
 
-marginTop:30
+                                {
 
-}}
->
+                                    selectedChat && (
 
-<div
-style={{
+                                        <>
 
-background:"#1c2b4a",
+                                            <div
+                                                style={{
 
-padding:30,
+                                                    display: "flex",
 
-borderRadius:20
+                                                    justifyContent:
+                                                        "flex-end"
 
-}}
->
+                                                }}
+                                            >
 
-<b>
+                                                <div
+                                                    style={{
 
-ELI5 AI
+                                                        background:
+                                                            "#3668e8",
 
-</b>
+                                                        padding:
+                                                            "34px",
 
-<div>
+                                                        borderRadius:
+                                                            "40px",
 
-{
-selectedChat.answer
-}
+                                                        maxWidth:
+                                                            420
 
-</div>
+                                                    }}
+                                                >
 
-</div>
+                                                    <div
+                                                        style={{
 
-</div>
+                                                            opacity: .7,
 
-</>
+                                                            fontWeight: 700,
 
-}
+                                                            fontSize: 18
 
-</div>
+                                                        }}
+                                                    >
 
+                                                        You
 
+                                                    </div>
 
-<div
-style={{
+                                                    <div
+                                                        style={{
 
-display:"flex",
+                                                            marginTop: 10,
 
-gap:20,
+                                                            fontSize: 42
 
-padding:30
+                                                        }}
+                                                    >
 
-}}
->
+                                                        {
+                                                            selectedChat.question
+                                                        }
 
-<textarea
+                                                    </div>
 
-value={
-text
-}
+                                                </div>
 
-onChange={
-e=>
-setText(
-e.target.value
-)
-}
+                                            </div>
 
-rows={3}
 
-style={{
 
-flex:1,
+                                            <div
+                                                style={{
 
-background:"transparent",
+                                                    display: "flex",
 
-color:"white",
+                                                    justifyContent:
+                                                        "center",
 
-padding:20
+                                                    marginTop:
+                                                        50
 
-}}
+                                                }}
+                                            >
 
-/>
+                                                <div
+                                                    style={{
 
-<button
+                                                        background:
+                                                            "#1f315a",
 
-disabled={
-loading
-}
+                                                        padding:
+                                                            "50px",
 
-onClick={
-explain
-}
+                                                        borderRadius:
+                                                            40,
 
->
+                                                        maxWidth:
+                                                            1000,
 
-{
+                                                        width:
+                                                            "100%",
 
-loading
+                                                        textAlign:
+                                                            "center"
 
-?
+                                                    }}
+                                                >
 
-"Thinking..."
+                                                    <div
+                                                        style={{
 
-:
+                                                            opacity: .7,
 
-"Explain"
+                                                            fontWeight: 700,
 
-}
+                                                            fontSize: 20
 
-</button>
+                                                        }}
+                                                    >
 
-</div>
+                                                        ELI5 AI
 
-</div>
+                                                    </div>
 
-</div>
+                                                    <div
+                                                        style={{
 
-);
+                                                            marginTop: 24,
 
-}}
+                                                            fontSize: 24,
 
-</Authenticator>
+                                                            lineHeight: 1.9
 
-);
+                                                        }}
+                                                    >
+
+                                                        {
+                                                            selectedChat.answer
+                                                        }
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </>
+
+                                    )
+
+                                }
+
+                            </div>
+
+
+
+                            {/* INPUT */}
+
+                            <div
+                                style={{
+
+                                    padding:
+                                        30,
+
+                                    display:
+                                        "flex",
+
+                                    gap:
+                                        24,
+
+                                    borderTop:
+                                        "1px solid rgba(255,255,255,.08)"
+
+                                }}
+                            >
+
+                                <textarea
+
+                                    value={
+                                        text
+                                    }
+
+                                    onChange={
+                                        e =>
+                                            setText(
+                                                e.target.value
+                                            )
+                                    }
+
+                                    placeholder=
+                                    "Ask something complicated..."
+
+                                    rows={3}
+
+                                    style={{
+
+                                        flex: 1,
+
+                                        background:
+                                            "#051130",
+
+                                        color:
+                                            "white",
+
+                                        border:
+                                            "1px solid rgba(255,255,255,.1)",
+
+                                        borderRadius:
+                                            30,
+
+                                        padding:
+                                            28,
+
+                                        fontSize:
+                                            24,
+
+                                        resize:
+                                            "none",
+
+                                        outline:
+                                            "none"
+
+                                    }}
+
+                                />
+
+                                <button
+
+                                    disabled={
+                                        loading
+                                    }
+
+                                    onClick={
+                                        explain
+                                    }
+
+                                    style={{
+
+                                        width:
+                                            220,
+
+                                        background:
+                                            "#4c82ff",
+
+                                        color:
+                                            "white",
+
+                                        border:
+                                            "none",
+
+                                        borderRadius:
+                                            30,
+
+                                        fontSize:
+                                            34,
+
+                                        fontWeight:
+                                            700,
+
+                                        cursor:
+                                            "pointer"
+
+                                    }}
+
+                                >
+
+                                    {
+
+                                        loading
+
+                                            ?
+
+                                            "Thinking..."
+
+                                            :
+
+                                            "Explain"
+
+                                    }
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                );
+
+            }}
+
+        </Authenticator>
+
+    );
 
 }
 
