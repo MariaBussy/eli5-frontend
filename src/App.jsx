@@ -443,29 +443,33 @@ function App() {
                         <div
                             style={{
 
-                                width: "360px",
+                                width: "320px",
 
                                 height: "100%",
 
                                 background: "#031133",
 
-                                padding: "28px",
+                                padding: "32px",
 
                                 overflowY: "auto",
 
-                                borderRight:
-                                    "1px solid rgba(255,255,255,.08)",
+                                boxSizing: "border-box",
 
-                                boxSizing:
-                                    "border-box"
+                                borderRight:
+                                    "1px solid rgba(255,255,255,.08)"
 
                             }}
                         >
 
                             <h2
                                 style={{
+
+                                    margin: 0,
+
                                     marginBottom: 30,
-                                    fontSize: 54
+
+                                    fontSize: "44px"
+
                                 }}
                             >
 
@@ -487,13 +491,13 @@ function App() {
 
                                         style={{
 
-                                            padding: 24,
+                                            padding: "24px",
+
+                                            borderRadius: "24px",
+
+                                            marginBottom: "18px",
 
                                             cursor: "pointer",
-
-                                            marginBottom: 16,
-
-                                            borderRadius: 22,
 
                                             background:
 
@@ -501,14 +505,11 @@ function App() {
 
                                                     ?
 
-                                                    "#1f315a"
+                                                    "#223763"
 
                                                     :
 
-                                                    "#14244a",
-
-                                            transition:
-                                                ".2s"
+                                                    "#18284e"
 
                                         }}
 
@@ -517,9 +518,11 @@ function App() {
                                         <div
                                             style={{
 
-                                                fontSize: 26,
+                                                fontSize: "20px",
 
-                                                fontWeight: 700
+                                                fontWeight: 700,
+
+                                                lineHeight: 1.5
 
                                             }}
                                         >
@@ -527,7 +530,10 @@ function App() {
                                             {
 
                                                 chat.question
-                                                    ?.slice(0, 35)
+                                                    ?.slice(
+                                                        0,
+                                                        50
+                                                    )
 
                                             }
 
@@ -564,7 +570,9 @@ function App() {
                             <div
                                 style={{
 
-                                    padding: "40px",
+                                    padding: "28px",
+
+                                    position: "relative",
 
                                     textAlign: "center",
 
@@ -577,9 +585,9 @@ function App() {
                                 <h1
                                     style={{
 
-                                        fontSize: 96,
+                                        margin: 0,
 
-                                        margin: 0
+                                        fontSize: "72px"
 
                                     }}
                                 >
@@ -591,9 +599,9 @@ function App() {
                                 <div
                                     style={{
 
-                                        marginTop: 10,
+                                        marginTop: 12,
 
-                                        fontSize: 24,
+                                        fontSize: "18px",
 
                                         opacity: .7
 
@@ -608,6 +616,7 @@ function App() {
 
                                 </div>
 
+
                                 <button
 
                                     onClick={() =>
@@ -618,32 +627,27 @@ function App() {
 
                                     style={{
 
-                                        position:
-                                            "absolute",
+                                        position: "fixed",
 
-                                        right: 40,
+                                        right: "30px",
 
-                                        top: 40,
+                                        top: "30px",
 
-                                        padding:
-                                            "18px 32px",
+                                        padding: "16px 30px",
 
                                         border: "none",
 
-                                        borderRadius:
-                                            24,
+                                        borderRadius: "22px",
 
-                                        background:
-                                            "#ff5454",
+                                        background: "#ff5757",
 
-                                        color:
-                                            "white",
+                                        color: "white",
 
-                                        fontSize:
-                                            24,
+                                        fontSize: "24px",
 
-                                        cursor:
-                                            "pointer"
+                                        cursor: "pointer",
+
+                                        zIndex: 20
 
                                     }}
 
@@ -666,11 +670,13 @@ function App() {
 
                                     overflowY: "auto",
 
-                                    padding: "40px",
+                                    padding: "36px",
 
                                     display: "flex",
 
-                                    flexDirection: "column"
+                                    flexDirection: "column",
+
+                                    alignItems: "center"
 
                                 }}
                             >
@@ -681,13 +687,16 @@ function App() {
 
                                         <>
 
+                                            {/* USER */}
+
                                             <div
                                                 style={{
 
+                                                    width: "100%",
+
                                                     display: "flex",
 
-                                                    justifyContent:
-                                                        "flex-end"
+                                                    justifyContent: "flex-end"
 
                                                 }}
                                             >
@@ -695,17 +704,17 @@ function App() {
                                                 <div
                                                     style={{
 
-                                                        background:
-                                                            "#3668e8",
+                                                        background: "#3d6ef0",
 
-                                                        padding:
-                                                            "34px",
+                                                        padding: "28px",
 
-                                                        borderRadius:
-                                                            "40px",
+                                                        borderRadius: "34px",
 
-                                                        maxWidth:
-                                                            420
+                                                        maxWidth: "420px",
+
+                                                        width: "fit-content",
+
+                                                        wordBreak: "break-word"
 
                                                     }}
                                                 >
@@ -713,11 +722,9 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            opacity: .7,
+                                                            opacity: .8,
 
-                                                            fontWeight: 700,
-
-                                                            fontSize: 18
+                                                            fontWeight: 700
 
                                                         }}
                                                     >
@@ -729,9 +736,9 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            marginTop: 10,
+                                                            fontSize: "22px",
 
-                                                            fontSize: 42
+                                                            marginTop: "10px"
 
                                                         }}
                                                     >
@@ -748,16 +755,18 @@ function App() {
 
 
 
+                                            {/* AI */}
+
                                             <div
                                                 style={{
 
+                                                    marginTop: "40px",
+
+                                                    width: "100%",
+
                                                     display: "flex",
 
-                                                    justifyContent:
-                                                        "center",
-
-                                                    marginTop:
-                                                        50
+                                                    justifyContent: "center"
 
                                                 }}
                                             >
@@ -765,23 +774,17 @@ function App() {
                                                 <div
                                                     style={{
 
-                                                        background:
-                                                            "#1f315a",
+                                                        background: "#223763",
 
-                                                        padding:
-                                                            "50px",
+                                                        padding: "42px",
 
-                                                        borderRadius:
-                                                            40,
+                                                        borderRadius: "40px",
 
-                                                        maxWidth:
-                                                            1000,
+                                                        maxWidth: "900px",
 
-                                                        width:
-                                                            "100%",
+                                                        width: "90%",
 
-                                                        textAlign:
-                                                            "center"
+                                                        textAlign: "center"
 
                                                     }}
                                                 >
@@ -789,11 +792,9 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            opacity: .7,
-
                                                             fontWeight: 700,
 
-                                                            fontSize: 20
+                                                            opacity: .7
 
                                                         }}
                                                     >
@@ -805,11 +806,11 @@ function App() {
                                                     <div
                                                         style={{
 
-                                                            marginTop: 24,
+                                                            marginTop: "22px",
 
-                                                            fontSize: 24,
+                                                            fontSize: "20px",
 
-                                                            lineHeight: 1.9
+                                                            lineHeight: 1.8
 
                                                         }}
                                                     >
@@ -839,14 +840,14 @@ function App() {
                             <div
                                 style={{
 
-                                    padding:
-                                        30,
+                                    padding: "28px",
 
-                                    display:
-                                        "flex",
+                                    display: "grid",
 
-                                    gap:
-                                        24,
+                                    gridTemplateColumns:
+                                        "1fr 220px",
+
+                                    gap: "20px",
 
                                     borderTop:
                                         "1px solid rgba(255,255,255,.08)"
@@ -867,42 +868,38 @@ function App() {
                                             )
                                     }
 
+                                    rows={3}
+
                                     placeholder=
                                     "Ask something complicated..."
 
-                                    rows={3}
-
                                     style={{
 
-                                        flex: 1,
+                                        width: "100%",
 
-                                        background:
-                                            "#051130",
+                                        background: "#07152f",
 
-                                        color:
-                                            "white",
+                                        color: "white",
+
+                                        padding: "28px",
+
+                                        fontSize: "20px",
+
+                                        minHeight: "120px",
 
                                         border:
-                                            "1px solid rgba(255,255,255,.1)",
+                                            "1px solid rgba(255,255,255,.08)",
 
-                                        borderRadius:
-                                            30,
+                                        borderRadius: "30px",
 
-                                        padding:
-                                            28,
+                                        resize: "none",
 
-                                        fontSize:
-                                            24,
-
-                                        resize:
-                                            "none",
-
-                                        outline:
-                                            "none"
+                                        outline: "none"
 
                                     }}
 
                                 />
+
 
                                 <button
 
@@ -916,29 +913,19 @@ function App() {
 
                                     style={{
 
-                                        width:
-                                            220,
+                                        background: "#4b82ff",
 
-                                        background:
-                                            "#4c82ff",
+                                        border: "none",
 
-                                        color:
-                                            "white",
+                                        borderRadius: "30px",
 
-                                        border:
-                                            "none",
+                                        color: "white",
 
-                                        borderRadius:
-                                            30,
+                                        fontSize: "28px",
 
-                                        fontSize:
-                                            34,
+                                        fontWeight: 700,
 
-                                        fontWeight:
-                                            700,
-
-                                        cursor:
-                                            "pointer"
+                                        cursor: "pointer"
 
                                     }}
 
