@@ -422,13 +422,15 @@ function App() {
                     <div
                         style={{
 
-                            width: "100vw",
-                            height: "100vh",
+                            height: "100%",
+                            minWidth: 0,
+                            height: "100dvh",
+                            boxSizing: "border-box",
 
                             display: "grid",
 
                             gridTemplateColumns:
-                                "320px 1fr",
+                                "280px minmax(0,1fr)",
 
                             background: "#020b24",
 
@@ -770,8 +772,8 @@ function App() {
                                                         borderRadius:
                                                             "36px",
 
-                                                        width:
-                                                            "min(900px,85%)"
+                                                        maxWidth: "850px",
+                                                        width: "100%"
 
                                                     }}
                                                 >
