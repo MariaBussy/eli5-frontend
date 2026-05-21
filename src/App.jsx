@@ -6,12 +6,17 @@ const API =
 
 function App() {
 
-const [text,setText]=useState("");
+const [text,setText]=
+useState("");
 
 const [loading,setLoading]=
 useState(false);
 
-const [chat,setChat]=
+const [history,setHistory]=
+useState([]);
+
+const [selectedChat,
+setSelectedChat]=
 useState(null);
 
 const [currentUser,
@@ -25,32 +30,85 @@ if(!user) return;
 try{
 
 const userId =
-user.userId ||
-user.username ||
+
+user.userId
+||
+user.username
+||
 user.attributes?.sub;
 
-const res =
+const response =
 await fetch(
 `${API}/history?userId=${encodeURIComponent(userId)}`
 );
 
 const data =
-await res.json();
+await response.json();
 
 if(
 !Array.isArray(data)
-||
-data.length===0
 ){
 
-setChat(null);
+setHistory([]);
 
 return;
 
 }
 
-const sorted =
-data.sort(
+const grouped={};
+
+data.forEach(item=>{
+
+const id =
+item.conversationId
+||
+"single";
+
+if(
+!grouped[id]
+){
+
+grouped[id]={
+
+id,
+
+createdAt:
+item.createdAt,
+
+question:"",
+
+answer:""
+
+};
+
+}
+
+if(
+item.role==="user"
+){
+
+grouped[id].question=
+item.content;
+
+}
+
+if(
+item.role==="assistant"
+){
+
+grouped[id].answer=
+item.content;
+
+}
+
+});
+
+const conversations =
+
+Object
+.values(grouped)
+
+.sort(
 (a,b)=>
 
 new Date(
@@ -65,29 +123,31 @@ a.createdAt
 
 );
 
-const userMsg =
-sorted.find(
-x=>
-x.role==="user"
+setHistory(
+conversations
 );
 
-const aiMsg =
-sorted.find(
+setSelectedChat(prev=>{
+
+if(
+prev
+){
+
+const updated =
+
+conversations.find(
 x=>
-x.role==="assistant"
+x.id===prev.id
 );
 
-setChat({
+if(updated)
+return updated;
 
-question:
-userMsg?.content
-||
-"",
+}
 
-answer:
-aiMsg?.content
+return conversations[0]
 ||
-""
+null;
 
 });
 
@@ -96,17 +156,19 @@ catch(err){
 
 console.log(err);
 
-setChat(null);
-
 }
 
 }
 
 useEffect(()=>{
 
-if(currentUser){
+if(
+currentUser
+){
 
-setChat(null);
+setHistory([]);
+
+setSelectedChat(null);
 
 loadHistory(
 currentUser
@@ -129,7 +191,9 @@ loading
 )
 return;
 
-setLoading(true);
+setLoading(
+true
+);
 
 try{
 
@@ -137,10 +201,8 @@ const userId =
 
 currentUser.userId
 ||
-
 currentUser.username
 ||
-
 currentUser.attributes?.sub;
 
 const email =
@@ -160,16 +222,38 @@ currentUser
 "";
 
 const question =
-text;
+text.trim();
 
-setChat({
+const conversationId =
+crypto.randomUUID();
+
+const optimistic={
+
+id:
+conversationId,
+
+createdAt:
+new Date()
+.toISOString(),
 
 question,
 
 answer:
 "Generating..."
 
-});
+};
+
+setHistory(
+prev=>
+[
+optimistic,
+...prev
+]
+);
+
+setSelectedChat(
+optimistic
+);
 
 setText("");
 
@@ -197,7 +281,9 @@ question,
 
 userId,
 
-email
+email,
+
+conversationId
 
 })
 
@@ -207,7 +293,7 @@ email
 
 let tries=0;
 
-const poll=
+const poll =
 setInterval(
 async()=>{
 
@@ -222,8 +308,7 @@ tries>20
 ){
 
 clearInterval(
-poll
-);
+poll);
 
 setLoading(
 false
@@ -238,8 +323,7 @@ false
 setTimeout(()=>{
 
 clearInterval(
-poll
-);
+poll);
 
 setLoading(
 false
@@ -250,7 +334,9 @@ false
 }
 catch(err){
 
-console.log(err);
+console.log(
+err
+);
 
 setLoading(
 false
@@ -288,14 +374,224 @@ return(
 <div
 style={{
 
-background:
-"#020b24",
+display:
+"flex",
 
 height:
 "100vh",
 
+background:
+"#020b24",
+
 color:
 "white",
+
+fontFamily:
+"Arial"
+
+}}
+>
+
+{/* SIDEBAR */}
+
+<div
+style={{
+
+width:320,
+
+background:
+"#031133",
+
+padding:24,
+
+overflowY:
+"auto",
+
+borderRight:
+"1px solid rgba(255,255,255,.08)"
+
+}}
+>
+
+<h2>
+
+Conversations
+
+</h2>
+
+<button
+
+onClick={()=>
+setSelectedChat(
+null
+)
+}
+
+style={{
+
+width:
+"100%",
+
+padding:
+18,
+
+border:
+"none",
+
+borderRadius:
+20,
+
+background:
+"#3067e8",
+
+color:
+"white",
+
+fontSize:
+20
+
+}}
+
+>
+
++ New Chat
+
+</button>
+
+<div
+style={{
+marginTop:20
+}}
+>
+
+{
+
+history.map(
+chat=>(
+
+<div
+
+key={
+chat.id
+}
+
+onClick={()=>
+setSelectedChat(
+chat
+)
+}
+
+style={{
+
+padding:20,
+
+borderRadius:
+18,
+
+marginBottom:
+12,
+
+cursor:
+"pointer",
+
+background:
+
+selectedChat?.id
+===
+
+chat.id
+
+?
+
+"#1c2b4a"
+
+:
+
+"transparent"
+
+}}
+
+>
+
+<div
+style={{
+
+fontWeight:
+"bold"
+
+}}
+>
+
+{
+
+chat.question
+
+?.length
+>
+
+35
+
+?
+
+chat.question
+.slice(
+0,
+35
+)
+
++"..."
+
+:
+
+chat.question
+
+}
+
+</div>
+
+<div
+style={{
+
+opacity:
+.5,
+
+fontSize:
+12,
+
+marginTop:
+10
+
+}}
+>
+
+{
+
+new Date(
+chat.createdAt
+)
+
+.toLocaleString()
+
+}
+
+</div>
+
+</div>
+
+)
+
+}
+
+</div>
+
+</div>
+
+{/* MAIN */}
+
+<div
+style={{
+
+flex:1,
 
 display:
 "flex",
@@ -309,10 +605,14 @@ flexDirection:
 <div
 style={{
 
-padding:40,
+padding:
+30,
 
 textAlign:
-"center"
+"center",
+
+borderBottom:
+"1px solid rgba(255,255,255,.08)"
 
 }}
 >
@@ -320,7 +620,8 @@ textAlign:
 <h1
 style={{
 
-fontSize:72
+fontSize:
+72
 
 }}
 >
@@ -329,7 +630,14 @@ Explain Like I'm 5
 
 </h1>
 
-<div>
+<div
+style={{
+
+opacity:
+.6
+
+}}
+>
 
 {
 user
@@ -348,42 +656,37 @@ user
 
 <button
 
+onClick={()=>{
+
+setHistory([]);
+
+setSelectedChat(null);
+
+setCurrentUser(null);
+
+signOut();
+
+}}
+
 style={{
 
-marginTop:20,
-
-padding:
-"15px 30px",
+marginTop:
+20,
 
 background:
-"#ff4f4f",
+"#ff5757",
+
+padding:
+"16px 30px",
 
 border:
 "none",
 
-color:
-"white",
-
 borderRadius:
-20
+18,
 
-}}
-
-onClick={()=>{
-
-setChat(
-null
-);
-
-setText(
-""
-);
-
-setCurrentUser(
-null
-);
-
-signOut();
+color:
+"white"
 
 }}
 
@@ -408,7 +711,11 @@ overflow:
 }}
 >
 
-{chat && (
+{
+
+selectedChat
+
+&&
 
 <>
 
@@ -430,10 +737,11 @@ style={{
 background:
 "#3067e8",
 
-padding:25,
+padding:
+26,
 
 borderRadius:
-25,
+24,
 
 maxWidth:
 500
@@ -441,12 +749,23 @@ maxWidth:
 }}
 >
 
-<b>You</b>
+<div
+style={{
+
+opacity:
+.7
+
+}}
+>
+
+You
+
+</div>
 
 <div>
 
 {
-chat.question
+selectedChat.question
 }
 
 </div>
@@ -458,10 +777,8 @@ chat.question
 <div
 style={{
 
-marginTop:40,
-
-display:
-"flex"
+marginTop:
+40
 
 }}
 >
@@ -472,13 +789,14 @@ style={{
 background:
 "#1c2b4a",
 
-padding:35,
+padding:
+34,
 
 borderRadius:
-25,
+24,
 
 maxWidth:
-700,
+800,
 
 lineHeight:
 1.8
@@ -486,12 +804,23 @@ lineHeight:
 }}
 >
 
-<b>ELI5 AI</b>
+<div
+style={{
+
+opacity:
+.7
+
+}}
+>
+
+ELI5 AI
+
+</div>
 
 <div>
 
 {
-chat.answer
+selectedChat.answer
 }
 
 </div>
@@ -502,36 +831,42 @@ chat.answer
 
 </>
 
-)}
+}
 
 </div>
 
 <div
 style={{
 
+padding:
+30,
+
 display:
 "flex",
 
-padding:30,
-
-gap:20
+gap:
+20
 
 }}
 >
 
 <textarea
 
-value={text}
+value={
+text
+}
 
-onChange={(e)=>
-
+onChange={
+e=>
 setText(
 e.target.value
 )
-
 }
 
 rows={3}
+
+placeholder=
+"Ask something complicated..."
 
 style={{
 
@@ -543,34 +878,33 @@ background:
 border:
 "1px solid #333",
 
+borderRadius:
+20,
+
 color:
 "white",
 
-padding:20,
-
-borderRadius:
+padding:
 20
 
 }}
-
-placeholder=
-"Ask something..."
 
 />
 
 <button
 
-onClick={
-explain
-}
-
 disabled={
 loading
 }
 
+onClick={
+explain
+}
+
 style={{
 
-width:220,
+width:
+220,
 
 background:
 "#4285f4",
@@ -581,11 +915,11 @@ border:
 color:
 "white",
 
-borderRadius:
-20,
-
 fontSize:
-24
+24,
+
+borderRadius:
+20
 
 }}
 
@@ -606,6 +940,8 @@ loading
 }
 
 </button>
+
+</div>
 
 </div>
 
